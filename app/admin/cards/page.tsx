@@ -26,8 +26,6 @@ export default function AdminCardsPage() {
   const [form, setForm] = useState({
     order_number: '',
     buyer_name: '',
-    buyer_email: '',
-    buyer_phone: '',
   });
 
   const loadCards = useCallback(async () => {
@@ -47,8 +45,8 @@ export default function AdminCardsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.order_number || !form.buyer_name || !form.buyer_email || !form.buyer_phone) {
-      toast.error('Please fill in all fields');
+    if (!form.order_number || !form.buyer_name) {
+      toast.error('Please fill in order number and buyer name');
       return;
     }
     setCreating(true);
@@ -58,7 +56,7 @@ export default function AdminCardsPage() {
       setCreating(false);
       return;
     }
-    setForm({ order_number: '', buyer_name: '', buyer_email: '', buyer_phone: '' });
+    setForm({ order_number: '', buyer_name: '' });
     setShowCreateForm(false);
     await loadCards();
     setSelectedCard(card);
@@ -134,27 +132,6 @@ export default function AdminCardsPage() {
                     value={form.buyer_name}
                     onChange={(e) => setForm({ ...form, buyer_name: e.target.value })}
                     placeholder="Full name"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="buyer_email">Buyer Email</Label>
-                  <Input
-                    id="buyer_email"
-                    type="email"
-                    value={form.buyer_email}
-                    onChange={(e) => setForm({ ...form, buyer_email: e.target.value })}
-                    placeholder="email@example.com"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="buyer_phone">Buyer Phone</Label>
-                  <Input
-                    id="buyer_phone"
-                    value={form.buyer_phone}
-                    onChange={(e) => setForm({ ...form, buyer_phone: e.target.value })}
-                    placeholder="+1 234 567 890"
                     required
                   />
                 </div>

@@ -226,7 +226,7 @@ function CardReveal({ card }: { card: CardWithOrder }) {
           transition={{ delay: 2, duration: 1 }}
           className="mt-10 text-center"
         >
-          <p className="text-xs text-stone-400">Made with love by Hommly</p>
+          <p className="text-xs text-stone-400">Made with love by Hommly.sg ❤️</p>
         </motion.footer>
       </div>
     </div>

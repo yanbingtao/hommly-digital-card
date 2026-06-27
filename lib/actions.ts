@@ -1,7 +1,7 @@
 'use server';
 
-import { supabase } from './supabase';
-import { DigitalCard, Order, CardWithOrder } from './types';
+import { getSupabase, getConnectionErrorMessage } from './supabase';
+import { DigitalCard, CardWithOrder } from './types';
 import crypto from 'crypto';
 
 function generateToken(): string {
@@ -11,17 +11,16 @@ function generateToken(): string {
 export async function createCard(data: {
   order_number: string;
   buyer_name: string;
-  buyer_email: string;
-  buyer_phone: string;
 }): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
+    const supabase = getSupabase();
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         order_number: data.order_number,
         buyer_name: data.buyer_name,
-        buyer_email: data.buyer_email,
-        buyer_phone: data.buyer_phone,
+        buyer_email: '',
+        buyer_phone: '',
       })
       .select()
       .single();
@@ -51,13 +50,14 @@ export async function createCard(data: {
       card: { ...card, order } as CardWithOrder,
       error: null,
     };
-  } catch (err: any) {
-    return { card: null, error: err.message || 'Unknown error' };
+  } catch (err: unknown) {
+    return { card: null, error: getConnectionErrorMessage(err) };
   }
 }
 
 export async function getCards(): Promise<{ cards: CardWithOrder[] | null; error: string | null }> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
       .select('*, order:orders(*)')
@@ -68,13 +68,14 @@ export async function getCards(): Promise<{ cards: CardWithOrder[] | null; error
     }
 
     return { cards: data as CardWithOrder[] | null, error: null };
-  } catch (err: any) {
-    return { cards: null, error: err.message || 'Unknown error' };
+  } catch (err: unknown) {
+    return { cards: null, error: getConnectionErrorMessage(err) };
   }
 }
 
 export async function getCardByPublicToken(publicToken: string): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
       .select('*, order:orders(*)')
@@ -86,13 +87,14 @@ export async function getCardByPublicToken(publicToken: string): Promise<{ card:
     }
 
     return { card: data as CardWithOrder | null, error: null };
-  } catch (err: any) {
-    return { card: null, error: err.message || 'Unknown error' };
+  } catch (err: unknown) {
+    return { card: null, error: getConnectionErrorMessage(err) };
   }
 }
 
 export async function getCardByEditToken(editToken: string): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
       .select('*, order:orders(*)')
@@ -104,8 +106,8 @@ export async function getCardByEditToken(editToken: string): Promise<{ card: Car
     }
 
     return { card: data as CardWithOrder | null, error: null };
-  } catch (err: any) {
-    return { card: null, error: err.message || 'Unknown error' };
+  } catch (err: unknown) {
+    return { card: null, error: getConnectionErrorMessage(err) };
   }
 }
 
@@ -120,6 +122,7 @@ export async function updateCard(
   }
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
       .update({
@@ -135,13 +138,14 @@ export async function updateCard(
     }
 
     return { card: data as DigitalCard | null, error: null };
-  } catch (err: any) {
-    return { card: null, error: err.message || 'Unknown error' };
+  } catch (err: unknown) {
+    return { card: null, error: getConnectionErrorMessage(err) };
   }
 }
 
 export async function publishCard(editToken: string): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
       .update({
@@ -158,7 +162,7 @@ export async function publishCard(editToken: string): Promise<{ card: DigitalCar
     }
 
     return { card: data as DigitalCard | null, error: null };
-  } catch (err: any) {
-    return { card: null, error: err.message || 'Unknown error' };
+  } catch (err: unknown) {
+    return { card: null, error: getConnectionErrorMessage(err) };
   }
 }

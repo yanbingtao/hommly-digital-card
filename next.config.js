@@ -6,6 +6,7 @@ const nextConfig = {
   images: { unoptimized: true },
   experimental: {
     serverActions: true,
+    serverComponentsExternalPackages: ['@supabase/supabase-js'],
   },
 };
 
