@@ -1,10 +1,8 @@
 'use server';
 
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import {
   ADMIN_SESSION_COOKIE,
-  assertAdminAuthenticated,
   getAdminCookieOptions,
   getAdminSessionToken,
 } from '@/lib/admin-auth';
@@ -12,7 +10,7 @@ import {
 export async function loginAdmin(
   password: string,
   redirectTo = '/admin/cards'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; redirectTo?: string; error?: string }> {
   const configuredPassword = process.env.ADMIN_PASSWORD?.trim();
 
   if (!configuredPassword) {
@@ -28,14 +26,12 @@ export async function loginAdmin(
 
   cookies().set(ADMIN_SESSION_COOKIE, getAdminSessionToken(), getAdminCookieOptions());
 
-  redirect(redirectTo.startsWith('/admin') ? redirectTo : '/admin/cards');
+  const safeRedirect = redirectTo.startsWith('/admin') ? redirectTo : '/admin/cards';
+
+  return { success: true, redirectTo: safeRedirect };
 }
 
-export async function logoutAdmin(): Promise<void> {
+export async function logoutAdmin(): Promise<{ success: boolean }> {
   cookies().delete(ADMIN_SESSION_COOKIE);
-  redirect('/admin/login');
-}
-
-export async function requireAdminSession(): Promise<void> {
-  await assertAdminAuthenticated();
+  return { success: true };
 }

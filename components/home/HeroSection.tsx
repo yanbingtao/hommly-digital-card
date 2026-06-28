@@ -19,13 +19,13 @@ export function HeroSection() {
           <p className="mb-4 inline-flex items-center rounded-full bg-white/80 px-4 py-1.5 text-xs font-medium uppercase tracking-widest text-rose-600 shadow-sm ring-1 ring-rose-100">
             Digital Surprise Cards
           </p>
-          <h1 className="text-4xl font-semibold leading-tight tracking-tight text-stone-800 sm:text-5xl lg:text-6xl">
-            Make every gift feel{' '}
-            <span className="bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text text-transparent">
+          <h1 className="flex flex-col items-center gap-2 text-4xl font-semibold leading-normal tracking-tight sm:gap-3 sm:text-5xl lg:text-6xl">
+            <span className="text-stone-800">Make every gift feel</span>
+            <span className="block bg-gradient-to-r from-rose-500 to-amber-500 bg-clip-text pb-2 text-transparent">
               more meaningful
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-stone-600 sm:text-lg">
+          <p className="mx-auto mt-8 max-w-2xl text-base leading-relaxed text-stone-600 sm:mt-10 sm:text-lg">
             Make your Hommly gift extra meaningful with a digital surprise card — complete
             with a heartfelt message, photo, and animation that opens by QR code.
           </p>

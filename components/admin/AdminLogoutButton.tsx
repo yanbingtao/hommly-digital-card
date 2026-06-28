@@ -14,7 +14,12 @@ export function AdminLogoutButton() {
       variant="outline"
       size="sm"
       disabled={isPending}
-      onClick={() => startTransition(() => logoutAdmin())}
+      onClick={() =>
+        startTransition(async () => {
+          await logoutAdmin();
+          window.location.assign('/admin/login');
+        })
+      }
     >
       {isPending ? (
         <Loader2 className="mr-1 h-4 w-4 animate-spin" />

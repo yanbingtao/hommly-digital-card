@@ -25,7 +25,11 @@ export function AdminLoginForm() {
       const result = await loginAdmin(password, nextPath);
       if (!result.success) {
         setError(result.error || 'Login failed');
+        return;
       }
+
+      // Full page load ensures the session cookie is sent on the next request.
+      window.location.assign(result.redirectTo || '/admin/cards');
     });
   };
 
