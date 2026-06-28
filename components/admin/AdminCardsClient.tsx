@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2 } from 'lucide-react';
+import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
 
@@ -43,6 +43,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   const [origin, setOrigin] = useState(getConfiguredSiteOrigin);
   const [cardToDelete, setCardToDelete] = useState<CardWithOrder | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [form, setForm] = useState({
     order_number: '',
@@ -169,6 +170,11 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     return <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Draft</span>;
   };
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredCards = normalizedSearch
+    ? cards.filter((card) => card.order.order_number.toLowerCase().includes(normalizedSearch))
+    : cards;
+
   return (
     <div className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
@@ -220,7 +226,18 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
         )}
 
         <div className="space-y-4">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-stone-500">All Cards</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-stone-500">All Cards</h2>
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by order number..."
+                className="pl-9"
+              />
+            </div>
+          </div>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
@@ -230,9 +247,14 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
               <Gift className="mx-auto h-8 w-8 text-stone-300" />
               <p className="mt-2 text-sm text-stone-500">No cards yet. Create your first one above.</p>
             </div>
+          ) : filteredCards.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-stone-300 py-12 text-center">
+              <Search className="mx-auto h-8 w-8 text-stone-300" />
+              <p className="mt-2 text-sm text-stone-500">No cards match &ldquo;{searchQuery}&rdquo;</p>
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {cards.map((card) => {
+              {filteredCards.map((card) => {
                 const editUrl = `${origin}/e/${card.edit_token}`;
                 const recipientUrl = `${origin}/g/${card.public_token}`;
                 return (
