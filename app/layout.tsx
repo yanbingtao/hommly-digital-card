@@ -6,22 +6,19 @@ import { Toaster } from '@/components/ui/sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Hommly - Digital Surprise Card',
-  description: 'A thoughtful digital surprise card from Hommly',
+  title: 'Hommly — Digital Surprise Card',
+  description:
+    'Every Hommly gift can come with a digital surprise card. Add a heartfelt message, photo, and animation — ready to be opened by QR code.',
   openGraph: {
-    images: [
-      {
-        url: 'https://bolt.new/static/og_default.png',
-      },
-    ],
+    title: 'Hommly — Digital Surprise Card',
+    description:
+      'Make every gift feel more personal with a QR-powered digital surprise card from Hommly.',
   },
   twitter: {
     card: 'summary_large_image',
-    images: [
-      {
-        url: 'https://bolt.new/static/og_default.png',
-      },
-    ],
+    title: 'Hommly — Digital Surprise Card',
+    description:
+      'Make every gift feel more personal with a QR-powered digital surprise card from Hommly.',
   },
 };
 
