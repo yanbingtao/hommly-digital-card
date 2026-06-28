@@ -5,13 +5,12 @@ import { useParams } from 'next/navigation';
 import { CardWithOrder, Theme } from '@/lib/types';
 import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Loader2, Send, Eye, ImageIcon, Heart, Sparkles, PartyPopper, CloudRain } from 'lucide-react';
+import { Loader2, Send, Eye, Heart, Sparkles, PartyPopper, CloudRain } from 'lucide-react';
 
 const THEMES: { id: Theme; label: string; icon: React.ReactNode; description: string }[] = [
   {
@@ -45,7 +44,6 @@ export default function EditCardPage() {
 
   const [form, setForm] = useState({
     message: '',
-    photo_url: '',
     theme: 'thank_you' as Theme,
   });
 
@@ -68,7 +66,6 @@ export default function EditCardPage() {
       setCard(data as CardWithOrder);
       setForm({
         message: data.message ?? '',
-        photo_url: data.photo_url ?? '',
         theme: (data.theme as Theme) || 'thank_you',
       });
     } catch {
@@ -97,7 +94,6 @@ export default function EditCardPage() {
         .from('digital_cards')
         .update({
           message: form.message,
-          photo_url: form.photo_url || null,
           theme: form.theme,
           status: 'published',
           published_at: new Date().toISOString(),
@@ -115,7 +111,6 @@ export default function EditCardPage() {
       setCard(data as CardWithOrder);
       setForm({
         message: data.message ?? '',
-        photo_url: data.photo_url ?? '',
         theme: (data.theme as Theme) || 'thank_you',
       });
       toast.success(
@@ -181,24 +176,6 @@ export default function EditCardPage() {
                 placeholder="Write something thoughtful..."
                 rows={6}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="photo_url">Photo URL</Label>
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-stone-400" />
-                <Input
-                  id="photo_url"
-                  value={form.photo_url}
-                  onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
-                  placeholder="https://example.com/photo.jpg"
-                />
-              </div>
-              {form.photo_url && (
-                <div className="mt-2 overflow-hidden rounded-lg border border-stone-200">
-                  <img src={form.photo_url} alt="Preview" className="h-40 w-full object-cover" />
-                </div>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -277,13 +254,12 @@ export default function EditCardPage() {
   );
 }
 
-function ThemePreview({ form }: { form: { message: string; photo_url: string; theme: Theme } }) {
+function ThemePreview({ form }: { form: { message: string; theme: Theme } }) {
   if (form.theme === 'birthday') {
     return (
       <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 p-6 text-center shadow-sm">
         <div className="mb-4 text-4xl">🎉</div>
         <h2 className="text-lg font-bold text-amber-800">Happy Birthday!</h2>
-        {form.photo_url && <img src={form.photo_url} alt="" className="mx-auto mt-4 h-48 w-full rounded-xl object-cover" />}
         <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-amber-900">{form.message || 'Your message will appear here...'}</p>
       </div>
     );
@@ -294,7 +270,6 @@ function ThemePreview({ form }: { form: { message: string; photo_url: string; th
       <div className="overflow-hidden rounded-2xl bg-gradient-to-b from-slate-100 to-stone-200 p-6 text-center shadow-sm">
         <div className="mb-4 text-4xl">💌</div>
         <h2 className="text-lg font-semibold text-slate-700">A special message for you</h2>
-        {form.photo_url && <img src={form.photo_url} alt="" className="mx-auto mt-4 h-48 w-full rounded-xl object-cover" />}
         <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{form.message || 'Your message will appear here...'}</p>
       </div>
     );
@@ -304,7 +279,6 @@ function ThemePreview({ form }: { form: { message: string; photo_url: string; th
     <div className="overflow-hidden rounded-2xl bg-[#fdf6e3] p-6 text-center shadow-sm">
       <div className="mb-4 text-4xl">✨</div>
       <h2 className="text-lg font-semibold text-stone-700">A heartfelt message</h2>
-      {form.photo_url && <img src={form.photo_url} alt="" className="mx-auto mt-4 h-48 w-full rounded-xl object-cover" />}
       <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-stone-600">{form.message || 'Your message will appear here...'}</p>
     </div>
   );
