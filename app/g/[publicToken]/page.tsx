@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getCardByPublicToken } from '@/lib/actions';
 import { CardWithOrder, Theme } from '@/lib/types';
+import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { Loader2 } from 'lucide-react';
 
 export default function RecipientViewPage() {
@@ -18,13 +18,27 @@ export default function RecipientViewPage() {
 
   const loadCard = useCallback(async () => {
     setLoading(true);
-    const { card: data, error: err } = await getCardByPublicToken(publicToken);
-    if (err) {
-      setError(err);
-    } else {
-      setCard(data);
+    try {
+      const supabase = createBrowserSupabase();
+      const { data, error } = await supabase
+        .from('digital_cards')
+        .select('*, order:orders(*)')
+        .eq('public_token', publicToken)
+        .maybeSingle();
+
+      if (error) {
+        setError(error.message);
+        setCard(null);
+      } else {
+        setCard(data as CardWithOrder | null);
+        setError(null);
+      }
+    } catch {
+      setError('Failed to load card');
+      setCard(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [publicToken]);
 
   useEffect(() => {
