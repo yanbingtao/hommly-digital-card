@@ -138,13 +138,6 @@ function CardReveal({ card }: { card: CardWithOrder }) {
       ? 'text-slate-700'
       : 'text-stone-700';
 
-  const subTextColor =
-    theme === 'birthday'
-      ? 'text-amber-700'
-      : theme === 'farewell'
-      ? 'text-slate-500'
-      : 'text-stone-500';
-
   return (
     <div className={`relative min-h-screen overflow-hidden ${containerBg}`}>
       {theme === 'birthday' && <Confetti />}
@@ -168,10 +161,10 @@ function CardReveal({ card }: { card: CardWithOrder }) {
               </div>
               <h2 className={`text-center text-xl font-semibold ${textColor}`}>
                 {theme === 'birthday'
-                  ? `Happy Birthday, ${card.recipient_name || 'You'}!`
+                  ? 'Happy Birthday!'
                   : theme === 'farewell'
-                  ? `For ${card.recipient_name || 'You'}`
-                  : `Dear ${card.recipient_name || 'You'}`}
+                  ? 'A special message for you'
+                  : 'A heartfelt message'}
               </h2>
             </motion.div>
 
@@ -200,21 +193,6 @@ function CardReveal({ card }: { card: CardWithOrder }) {
             >
               <p className={`whitespace-pre-wrap text-center text-base leading-relaxed ${textColor}`}>
                 {card.message}
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: card.photo_url ? 1.5 : 1.1, duration: 0.8 }}
-              className="mt-6 text-center"
-            >
-              <p className={`text-sm font-medium ${subTextColor}`}>
-                {theme === 'birthday'
-                  ? `With love, ${card.sender_name || 'A friend'}`
-                  : theme === 'farewell'
-                  ? `From ${card.sender_name || 'A friend'}`
-                  : `With gratitude, ${card.sender_name || 'A friend'}`}
               </p>
             </motion.div>
           </div>

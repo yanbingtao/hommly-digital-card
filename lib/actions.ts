@@ -11,7 +11,6 @@ function generateToken(): string {
 
 export async function createCard(data: {
   order_number: string;
-  buyer_name: string;
 }): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
     await assertAdminAuthenticated();
@@ -20,9 +19,6 @@ export async function createCard(data: {
       .from('orders')
       .insert({
         order_number: data.order_number,
-        buyer_name: data.buyer_name,
-        buyer_email: '',
-        buyer_phone: '',
       })
       .select()
       .single();
@@ -152,12 +148,22 @@ export async function updateCard(
   }
 }
 
-export async function publishCard(editToken: string): Promise<{ card: DigitalCard | null; error: string | null }> {
+export async function publishCard(
+  editToken: string,
+  content: {
+    message: string;
+    photo_url?: string;
+    theme?: string;
+  }
+): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
       .update({
+        message: content.message,
+        photo_url: content.photo_url || null,
+        theme: content.theme || 'thank_you',
         status: 'published',
         published_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -173,5 +179,44 @@ export async function publishCard(editToken: string): Promise<{ card: DigitalCar
     return { card: data as DigitalCard | null, error: null };
   } catch (err: unknown) {
     return { card: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
+export async function deleteCard(
+  cardId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    await assertAdminAuthenticated();
+    const supabase = getSupabase();
+
+    const { data: card, error: fetchError } = await supabase
+      .from('digital_cards')
+      .select('id, order_id')
+      .eq('id', cardId)
+      .maybeSingle();
+
+    if (fetchError) {
+      return { success: false, error: fetchError.message };
+    }
+
+    if (!card) {
+      return { success: false, error: 'Card not found' };
+    }
+
+    const { error: deleteError } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', card.order_id);
+
+    if (deleteError) {
+      return { success: false, error: deleteError.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { success: false, error: 'Unauthorized. Please sign in again.' };
+    }
+    return { success: false, error: getConnectionErrorMessage(err) };
   }
 }

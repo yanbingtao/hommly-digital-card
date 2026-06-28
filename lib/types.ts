@@ -1,7 +1,6 @@
 export interface Order {
   id: string;
   order_number: string;
-  buyer_name: string;
   created_at: string;
 }
 

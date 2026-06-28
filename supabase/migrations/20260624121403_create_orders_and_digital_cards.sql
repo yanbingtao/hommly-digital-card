@@ -2,12 +2,9 @@
 # Create orders and digital_cards tables for Hommly Digital Surprise Card MVP
 
 1. New Tables
-- `orders` — stores buyer/order information created by the Hommly admin
+- `orders` — stores order information created by the Hommly admin
   - `id` (uuid, primary key)
   - `order_number` (text, not null)
-  - `buyer_name` (text, not null)
-  - `buyer_email` (text, not null)
-  - `buyer_phone` (text, not null)
   - `created_at` (timestamptz, default now())
 
 - `digital_cards` — stores the digital surprise card content and tokens
@@ -39,9 +36,6 @@
 CREATE TABLE IF NOT EXISTS orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number text NOT NULL,
-  buyer_name text NOT NULL,
-  buyer_email text NOT NULL,
-  buyer_phone text NOT NULL,
   created_at timestamptz DEFAULT now()
 );
 
