@@ -16,7 +16,8 @@ A web app for pairing physical Hommly gifts with a personal digital message. Hom
 | Route | Who | Purpose |
 |-------|-----|---------|
 | `/` | Anyone | Landing page |
-| `/admin/cards` | Hommly admin | Create cards, copy links, view QR codes |
+| `/admin/login` | Hommly admin | Sign in to admin |
+| `/admin/cards` | Hommly admin | Create cards, copy links, view QR codes (password protected) |
 | `/e/[editToken]` | Buyer | Edit and publish the card |
 | `/g/[publicToken]` | Recipient | View the surprise (read-only) |
 
@@ -63,9 +64,12 @@ Create `.env.local` in the project root:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+ADMIN_PASSWORD=choose-a-strong-admin-password
 ```
 
 Do not commit `.env.local` — it is already listed in `.gitignore`.
+
+`ADMIN_PASSWORD` protects `/admin/cards`. Visiting the admin page will prompt for this password first.
 
 ### 4. Run the dev server
 
@@ -95,4 +99,4 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Deployment
 
-The project includes a `netlify.toml` for [Netlify](https://netlify.com). Set the same Supabase environment variables in your hosting dashboard before deploying.
+The project includes a `netlify.toml` for [Netlify](https://netlify.com). Set the Supabase environment variables and `ADMIN_PASSWORD` in your hosting dashboard before deploying.

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check } from 'lucide-react';
+import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 
 export default function AdminCardsPage() {
   const [cards, setCards] = useState<CardWithOrder[]>([]);
@@ -100,10 +101,13 @@ export default function AdminCardsPage() {
             <Gift className="h-6 w-6 text-rose-500" />
             <h1 className="text-lg font-semibold text-stone-800">Hommly Admin</h1>
           </div>
-          <Button onClick={() => setShowCreateForm(true)} size="sm" className="bg-rose-500 hover:bg-rose-600">
-            <Plus className="mr-1 h-4 w-4" />
-            New Card
-          </Button>
+          <div className="flex items-center gap-2">
+            <AdminLogoutButton />
+            <Button onClick={() => setShowCreateForm(true)} size="sm" className="bg-rose-500 hover:bg-rose-600">
+              <Plus className="mr-1 h-4 w-4" />
+              New Card
+            </Button>
+          </div>
         </div>
       </header>
 

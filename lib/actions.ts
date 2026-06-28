@@ -1,6 +1,7 @@
 'use server';
 
 import { getSupabase, getConnectionErrorMessage } from './supabase';
+import { assertAdminAuthenticated } from './admin-auth';
 import { DigitalCard, CardWithOrder } from './types';
 import crypto from 'crypto';
 
@@ -13,6 +14,7 @@ export async function createCard(data: {
   buyer_name: string;
 }): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
+    await assertAdminAuthenticated();
     const supabase = getSupabase();
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -51,12 +53,16 @@ export async function createCard(data: {
       error: null,
     };
   } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { card: null, error: 'Unauthorized. Please sign in again.' };
+    }
     return { card: null, error: getConnectionErrorMessage(err) };
   }
 }
 
 export async function getCards(): Promise<{ cards: CardWithOrder[] | null; error: string | null }> {
   try {
+    await assertAdminAuthenticated();
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('digital_cards')
@@ -69,6 +75,9 @@ export async function getCards(): Promise<{ cards: CardWithOrder[] | null; error
 
     return { cards: data as CardWithOrder[] | null, error: null };
   } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { cards: null, error: 'Unauthorized. Please sign in again.' };
+    }
     return { cards: null, error: getConnectionErrorMessage(err) };
   }
 }

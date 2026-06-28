@@ -32,7 +32,7 @@ export function LandingHeader() {
             How It Works
           </a>
           <Link
-            href="/admin/cards"
+            href="/admin/login"
             className="rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-stone-500 transition hover:border-stone-300 hover:text-stone-700 sm:px-4 sm:py-2 sm:text-sm"
           >
             Admin Management
