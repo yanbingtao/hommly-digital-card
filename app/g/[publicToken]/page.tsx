@@ -65,19 +65,7 @@ export default function RecipientViewPage() {
   }
 
   if (card.status !== 'published') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
-        >
-          <div className="mb-4 text-5xl">🎁</div>
-          <h1 className="text-xl font-semibold text-stone-700">A special message is being prepared.</h1>
-          <p className="mt-2 text-sm text-stone-500">Check back soon for your surprise.</p>
-        </motion.div>
-      </div>
-    );
+    return <PreparingScreen theme={(card.theme as Theme) || 'thank_you'} />;
   }
 
   if (!opened) {
@@ -92,7 +80,7 @@ export default function RecipientViewPage() {
   return <CardReveal card={card} />;
 }
 
-function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) {
+function ThemeBackground({ theme, children }: { theme: Theme; children: React.ReactNode }) {
   const bgClass =
     theme === 'birthday'
       ? 'bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100'
@@ -105,39 +93,109 @@ function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) 
       {theme === 'birthday' && <Confetti />}
       {theme === 'thank_you' && <ThankYouAnimation />}
       {theme === 'farewell' && <FarewellAnimation />}
-
-      <div className="relative z-10 flex flex-col items-center">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-        className="text-center"
-      >
-        <motion.div
-          animate={{ y: [0, -8, 0] }}
-          transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
-          className="mb-6 text-6xl"
-        >
-          {theme === 'birthday' ? '🎁' : theme === 'farewell' ? '💌' : '✨'}
-        </motion.div>
-        <h1 className="text-2xl font-semibold text-stone-700">
-          A little surprise is waiting for you
-        </h1>
-        <p className="mt-2 text-sm text-stone-500">Someone prepared something thoughtful.</p>
-      </motion.div>
-
-      <motion.button
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5, duration: 0.6 }}
-        whileTap={{ scale: 0.96 }}
-        onClick={onOpen}
-        className="mt-10 rounded-full bg-rose-500 px-8 py-3.5 text-sm font-medium text-white shadow-lg shadow-rose-200 transition-colors hover:bg-rose-600"
-      >
-        Tap to open
-      </motion.button>
-      </div>
+      {children}
     </div>
+  );
+}
+
+function HommlyFooterText() {
+  return (
+    <p className="text-xs text-stone-400">
+      Made with love by{' '}
+      <a
+        href="https://www.hommly.sg"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline decoration-stone-300 underline-offset-2 transition-colors hover:text-stone-600"
+      >
+        Hommly.sg
+      </a>{' '}
+      ❤️
+    </p>
+  );
+}
+
+function HommlyFooter() {
+  return (
+    <motion.footer
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 1, duration: 0.8 }}
+      className="absolute bottom-8 left-0 right-0 z-10 text-center"
+    >
+      <HommlyFooterText />
+    </motion.footer>
+  );
+}
+
+function themeEmoji(theme: Theme) {
+  return theme === 'birthday' ? '🎁' : theme === 'farewell' ? '💌' : '✨';
+}
+
+function PreparingScreen({ theme }: { theme: Theme }) {
+  return (
+    <ThemeBackground theme={theme}>
+      <div className="relative z-10 flex flex-col items-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+            className="mb-6 text-6xl"
+          >
+            {themeEmoji(theme)}
+          </motion.div>
+          <h1 className="text-2xl font-semibold text-stone-700">
+            A special message is being prepared.
+          </h1>
+          <p className="mt-2 text-sm text-stone-500">Check back soon for your surprise.</p>
+        </motion.div>
+      </div>
+      <HommlyFooter />
+    </ThemeBackground>
+  );
+}
+
+function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) {
+  return (
+    <ThemeBackground theme={theme}>
+      <div className="relative z-10 flex flex-col items-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+            className="mb-6 text-6xl"
+          >
+            {themeEmoji(theme)}
+          </motion.div>
+          <h1 className="text-2xl font-semibold text-stone-700">
+            A little surprise is waiting for you
+          </h1>
+          <p className="mt-2 text-sm text-stone-500">Someone prepared something thoughtful.</p>
+        </motion.div>
+
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={onOpen}
+          className="mt-10 rounded-full bg-rose-500 px-8 py-3.5 text-sm font-medium text-white shadow-lg shadow-rose-200 transition-colors hover:bg-rose-600"
+        >
+          Tap to open
+        </motion.button>
+      </div>
+      <HommlyFooter />
+    </ThemeBackground>
   );
 }
 
@@ -225,7 +283,7 @@ function CardReveal({ card }: { card: CardWithOrder }) {
           transition={{ delay: 2, duration: 1 }}
           className="mt-10 text-center"
         >
-          <p className="text-xs text-stone-400">Made with love by Hommly.sg ❤️</p>
+          <HommlyFooterText />
         </motion.footer>
       </div>
     </div>
