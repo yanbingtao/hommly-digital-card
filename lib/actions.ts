@@ -143,10 +143,7 @@ export async function getCardByEditToken(editToken: string): Promise<{ card: Car
 export async function updateCard(
   editToken: string,
   updates: {
-    recipient_name?: string;
-    sender_name?: string;
     message?: string;
-    photo_url?: string;
     theme?: string;
     show_sender_links?: boolean;
     sender_links?: Record<string, unknown> | null;
@@ -178,7 +175,6 @@ export async function publishCard(
   editToken: string,
   content: {
     message: string;
-    photo_url?: string;
     theme?: string;
     show_sender_links?: boolean;
     sender_links?: Record<string, unknown> | null;
@@ -190,7 +186,6 @@ export async function publishCard(
       .from('digital_cards')
       .update({
         message: content.message,
-        photo_url: content.photo_url || null,
         theme: content.theme || 'thank_you',
         show_sender_links: content.show_sender_links ?? false,
         sender_links: content.show_sender_links ? content.sender_links ?? null : null,

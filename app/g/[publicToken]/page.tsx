@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { CardWithOrder, Theme } from '@/lib/types';
 import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { isRecipientCardUnavailable, isValidPublicToken } from '@/lib/card-availability';
@@ -210,44 +210,16 @@ function CardReveal({
               </h2>
             </motion.div>
 
-            <AnimatePresence>
-              {card.photo_url && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.7, duration: 0.8 }}
-                  className="mt-5 overflow-hidden rounded-xl"
-                >
-                  <img
-                    src={card.photo_url}
-                    alt="A thoughtful photo"
-                    className="h-56 w-full object-cover sm:h-64"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: card.photo_url ? 1.1 : 0.7, duration: 0.8 }}
+              transition={{ delay: 0.7, duration: 0.8 }}
               className="mt-6"
             >
               <p className={`whitespace-pre-wrap text-center text-base leading-relaxed ${textColor}`}>
                 {card.message}
               </p>
             </motion.div>
-
-            {card.sender_name && (
-              <motion.p
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: card.photo_url ? 1.3 : 0.9, duration: 0.7 }}
-                className={`mt-5 text-center text-sm font-medium ${textColor}`}
-              >
-                — {card.sender_name}
-              </motion.p>
-            )}
 
             {visibleSenderLinks.length > 0 && (
               <SenderLinkIcons

@@ -11,10 +11,7 @@ export interface DigitalCard {
   order_id: string;
   public_token: string;
   edit_token: string;
-  recipient_name: string | null;
-  sender_name: string | null;
   message: string | null;
-  photo_url: string | null;
   theme: string;
   animation: string;
   status: string;
