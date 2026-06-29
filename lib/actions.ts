@@ -9,16 +9,33 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function formatOrderTimestamp(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return (
+    String(date.getFullYear()) +
+    pad(date.getMonth() + 1) +
+    pad(date.getDate()) +
+    pad(date.getHours()) +
+    pad(date.getMinutes()) +
+    pad(date.getSeconds())
+  );
+}
+
+function buildOrderNumber(input: string): string {
+  return `${input.trim()}-${formatOrderTimestamp(new Date())}`;
+}
+
 export async function createCard(data: {
   order_number: string;
 }): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
     await assertAdminAuthenticated();
     const supabase = getSupabase();
+    const orderNumber = buildOrderNumber(data.order_number);
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        order_number: data.order_number,
+        order_number: orderNumber,
       })
       .select()
       .single();
@@ -88,11 +105,18 @@ export async function getCardByPublicToken(publicToken: string): Promise<{ card:
       .maybeSingle();
 
     if (error) {
+      console.error('[getCardByPublicToken] Database error:', error.message);
       return { card: null, error: error.message };
     }
 
-    return { card: data as CardWithOrder | null, error: null };
+    if (!data) {
+      console.error('[getCardByPublicToken] Card not found');
+      return { card: null, error: null };
+    }
+
+    return { card: data as CardWithOrder, error: null };
   } catch (err: unknown) {
+    console.error('[getCardByPublicToken] Failed to load card:', err);
     return { card: null, error: getConnectionErrorMessage(err) };
   }
 }

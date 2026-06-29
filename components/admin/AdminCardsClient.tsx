@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createCard, deleteCard, getCards } from '@/lib/actions';
-import { generateQRCodeDataURL } from '@/lib/qr';
+import { generateQRCodeDataURL, downloadDataUrl, orderQrFilename } from '@/lib/qr';
 import { copyToClipboard } from '@/lib/copy';
 import { CardWithOrder } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -22,13 +22,53 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search } from 'lucide-react';
+import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
 
 interface AdminCardsClientProps {
   initialCards: CardWithOrder[];
   initialError: string | null;
+}
+
+function getLocalDateKey(isoString: string): string {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatSectionDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString('en-SG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function groupCardsByDay(cards: CardWithOrder[]) {
+  const sorted = [...cards].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  const groups = new Map<string, CardWithOrder[]>();
+  for (const card of sorted) {
+    const dateKey = getLocalDateKey(card.created_at);
+    const existing = groups.get(dateKey);
+    if (existing) {
+      existing.push(card);
+    } else {
+      groups.set(dateKey, [card]);
+    }
+  }
+
+  return Array.from(groups.entries()).map(([dateKey, dayCards]) => ({
+    dateKey,
+    label: formatSectionDate(dayCards[0].created_at),
+    cards: dayCards,
+  }));
 }
 
 export function AdminCardsClient({ initialCards, initialError }: AdminCardsClientProps) {
@@ -163,6 +203,20 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     toast.success('Card deleted');
   };
 
+  const handleDownloadQrCodes = () => {
+    if (!selectedCard || !editQrCode || !recipientQrCode) {
+      toast.error('QR codes are still loading');
+      return;
+    }
+
+    const orderNumber = selectedCard.order.order_number;
+    downloadDataUrl(editQrCode, orderQrFilename(orderNumber, 'edit_page_qr'));
+    setTimeout(() => {
+      downloadDataUrl(recipientQrCode, orderQrFilename(orderNumber, 'view_page_qr'));
+    }, 150);
+    toast.success('QR codes downloaded');
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === 'published') {
       return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Published</span>;
@@ -174,6 +228,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   const filteredCards = normalizedSearch
     ? cards.filter((card) => card.order.order_number.toLowerCase().includes(normalizedSearch))
     : cards;
+  const cardsByDay = useMemo(() => groupCardsByDay(filteredCards), [filteredCards]);
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -253,8 +308,12 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
               <p className="mt-2 text-sm text-stone-500">No cards match &ldquo;{searchQuery}&rdquo;</p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredCards.map((card) => {
+            <div className="space-y-8">
+              {cardsByDay.map((section) => (
+                <section key={section.dateKey} className="space-y-3">
+                  <h3 className="text-sm font-semibold text-stone-700">{section.label}</h3>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {section.cards.map((card) => {
                 const editUrl = `${origin}/e/${card.edit_token}`;
                 const recipientUrl = `${origin}/g/${card.public_token}`;
                 return (
@@ -333,7 +392,10 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                     </CardContent>
                   </Card>
                 );
-              })}
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           )}
         </div>
@@ -442,6 +504,16 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   <p className="mt-2 text-center text-xs text-stone-500">Scan for recipient view</p>
                 </div>
               </div>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={!editQrCode || !recipientQrCode}
+                onClick={handleDownloadQrCodes}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download QR Codes
+              </Button>
 
               <div className="flex gap-2">
                 <Button
