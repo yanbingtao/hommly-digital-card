@@ -148,6 +148,8 @@ export async function updateCard(
     message?: string;
     photo_url?: string;
     theme?: string;
+    show_sender_links?: boolean;
+    sender_links?: Record<string, unknown> | null;
   }
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
@@ -178,6 +180,8 @@ export async function publishCard(
     message: string;
     photo_url?: string;
     theme?: string;
+    show_sender_links?: boolean;
+    sender_links?: Record<string, unknown> | null;
   }
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
@@ -188,6 +192,8 @@ export async function publishCard(
         message: content.message,
         photo_url: content.photo_url || null,
         theme: content.theme || 'thank_you',
+        show_sender_links: content.show_sender_links ?? false,
+        sender_links: content.show_sender_links ? content.sender_links ?? null : null,
         status: 'published',
         published_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

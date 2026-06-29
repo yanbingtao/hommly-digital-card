@@ -5,12 +5,21 @@ import { useParams } from 'next/navigation';
 import { CardWithOrder, Theme } from '@/lib/types';
 import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Loader2, Send, Eye, Heart, Sparkles, PartyPopper, CloudRain } from 'lucide-react';
+import {
+  buildSenderLinksFromForm,
+  EMPTY_SENDER_LINK_FORM,
+  parseSenderLinksFromDb,
+  senderLinksToFormInputs,
+  type SenderLinkFormInputs,
+} from '@/lib/sender-links';
 
 const THEMES: { id: Theme; label: string; icon: React.ReactNode; description: string }[] = [
   {
@@ -45,6 +54,8 @@ export default function EditCardPage() {
   const [form, setForm] = useState({
     message: '',
     theme: 'thank_you' as Theme,
+    show_sender_links: false,
+    sender_links: { ...EMPTY_SENDER_LINK_FORM } as SenderLinkFormInputs,
   });
 
   const loadCard = useCallback(async () => {
@@ -64,9 +75,12 @@ export default function EditCardPage() {
       }
 
       setCard(data as CardWithOrder);
+      const storedLinks = parseSenderLinksFromDb(data.sender_links);
       setForm({
         message: data.message ?? '',
         theme: (data.theme as Theme) || 'thank_you',
+        show_sender_links: Boolean(data.show_sender_links),
+        sender_links: senderLinksToFormInputs(storedLinks),
       });
     } catch {
       toast.error('Failed to load card');
@@ -90,11 +104,23 @@ export default function EditCardPage() {
     setPublishing(true);
     try {
       const supabase = createBrowserSupabase();
+      const senderLinks = form.show_sender_links
+        ? buildSenderLinksFromForm(form.sender_links)
+        : null;
+
+      if (form.show_sender_links && (!senderLinks || Object.keys(senderLinks).length === 0)) {
+        toast.error('Please add at least one valid link, or turn off “Show my links on this card”.');
+        setPublishing(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('digital_cards')
         .update({
           message: form.message,
           theme: form.theme,
+          show_sender_links: form.show_sender_links,
+          sender_links: form.show_sender_links ? senderLinks : null,
           status: 'published',
           published_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -109,9 +135,12 @@ export default function EditCardPage() {
       }
 
       setCard(data as CardWithOrder);
+      const storedLinks = parseSenderLinksFromDb(data.sender_links);
       setForm({
         message: data.message ?? '',
         theme: (data.theme as Theme) || 'thank_you',
+        show_sender_links: Boolean(data.show_sender_links),
+        sender_links: senderLinksToFormInputs(storedLinks),
       });
       toast.success(
         isPublished
@@ -200,6 +229,126 @@ export default function EditCardPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-stone-800">Share your links, optional</h3>
+                <p className="mt-1 text-xs text-stone-500">
+                  Add links you are comfortable sharing with the recipient.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-3">
+                <div>
+                  <Label htmlFor="show_sender_links" className="text-sm text-stone-700">
+                    Show my links on this card
+                  </Label>
+                  <p className="mt-1 text-xs text-stone-500">
+                    These links will appear quietly below your message if you choose to share them.
+                  </p>
+                </div>
+                <Switch
+                  id="show_sender_links"
+                  checked={form.show_sender_links}
+                  onCheckedChange={(checked) =>
+                    setForm({ ...form, show_sender_links: checked })
+                  }
+                  className="data-[state=checked]:bg-rose-500"
+                />
+              </div>
+
+              {form.show_sender_links && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp">WhatsApp number</Label>
+                    <Input
+                      id="whatsapp"
+                      value={form.sender_links.whatsapp}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sender_links: { ...form.sender_links, whatsapp: e.target.value },
+                        })
+                      }
+                      placeholder="e.g. 6591234567"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="instagram">Instagram username or URL</Label>
+                    <Input
+                      id="instagram"
+                      value={form.sender_links.instagram}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sender_links: { ...form.sender_links, instagram: e.target.value },
+                        })
+                      }
+                      placeholder="e.g. @username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedin">LinkedIn URL</Label>
+                    <Input
+                      id="linkedin"
+                      value={form.sender_links.linkedin}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sender_links: { ...form.sender_links, linkedin: e.target.value },
+                        })
+                      }
+                      placeholder="https://linkedin.com/in/username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tiktok">TikTok username or URL</Label>
+                    <Input
+                      id="tiktok"
+                      value={form.sender_links.tiktok}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sender_links: { ...form.sender_links, tiktok: e.target.value },
+                        })
+                      }
+                      placeholder="e.g. @username"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website URL</Label>
+                    <Input
+                      id="website"
+                      value={form.sender_links.website}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sender_links: { ...form.sender_links, website: e.target.value },
+                        })
+                      }
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={form.sender_links.email}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          sender_links: { ...form.sender_links, email: e.target.value },
+                        })
+                      }
+                      placeholder="hello@example.com"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />

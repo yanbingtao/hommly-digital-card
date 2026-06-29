@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CardWithOrder, Theme } from '@/lib/types';
-import { getCardByPublicToken } from '@/lib/actions';
+import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { isRecipientCardUnavailable, isValidPublicToken } from '@/lib/card-availability';
 import { HommlyFooter, HommlyFooterText } from '@/components/card/HommlyFooter';
 import { SignatureGreetingPage } from '@/components/card/SignatureGreetingPage';
+import { SenderLinkIcons } from '@/components/card/SenderLinkIcons';
+import { getVisibleSenderLinks, shouldShowSenderLinks } from '@/lib/sender-links';
 import {
   RecipientThemeBackground,
   Confetti,
@@ -37,13 +39,21 @@ export default function RecipientViewPage() {
     }
 
     try {
-      const { card: data, error } = await getCardByPublicToken(publicToken);
+      const supabase = createBrowserSupabase();
+      const { data, error } = await supabase
+        .from('digital_cards')
+        .select('*, order:orders(*)')
+        .eq('public_token', publicToken)
+        .maybeSingle();
 
-      if (error || isRecipientCardUnavailable(data)) {
+      if (error || isRecipientCardUnavailable(data as CardWithOrder | null)) {
+        setUnavailable(true);
+        setCard(null);
+      } else if (!data) {
         setUnavailable(true);
         setCard(null);
       } else {
-        setCard(data);
+        setCard(data as CardWithOrder);
         setUnavailable(false);
       }
     } catch {
@@ -52,6 +62,28 @@ export default function RecipientViewPage() {
     } finally {
       setLoading(false);
     }
+  }, [publicToken]);
+
+  const handleOpenCard = useCallback(async () => {
+    if (!isValidPublicToken(publicToken)) return;
+
+    try {
+      const supabase = createBrowserSupabase();
+      const { data } = await supabase
+        .from('digital_cards')
+        .select('*, order:orders(*)')
+        .eq('public_token', publicToken)
+        .maybeSingle();
+
+      if (data && !isRecipientCardUnavailable(data as CardWithOrder)) {
+        setCard(data as CardWithOrder);
+        setUnavailable(false);
+      }
+    } catch {
+      // Keep the last loaded card if refresh fails.
+    }
+
+    setOpened(true);
   }, [publicToken]);
 
   useEffect(() => {
@@ -74,7 +106,7 @@ export default function RecipientViewPage() {
     return (
       <OpeningScreen
         theme={card.theme as Theme}
-        onOpen={() => setOpened(true)}
+        onOpen={() => void handleOpenCard()}
       />
     );
   }
@@ -121,8 +153,17 @@ function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) 
   );
 }
 
-function CardReveal({ card }: { card: CardWithOrder }) {
+function CardReveal({
+  card,
+  pinVerified = true,
+}: {
+  card: CardWithOrder;
+  pinVerified?: boolean;
+}) {
   const theme = card.theme as Theme;
+  const visibleSenderLinks = shouldShowSenderLinks(card, { pinVerified })
+    ? getVisibleSenderLinks(card)
+    : [];
 
   const containerBg =
     theme === 'birthday'
@@ -196,6 +237,24 @@ function CardReveal({ card }: { card: CardWithOrder }) {
                 {card.message}
               </p>
             </motion.div>
+
+            {card.sender_name && (
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: card.photo_url ? 1.3 : 0.9, duration: 0.7 }}
+                className={`mt-5 text-center text-sm font-medium ${textColor}`}
+              >
+                — {card.sender_name}
+              </motion.p>
+            )}
+
+            {visibleSenderLinks.length > 0 && (
+              <SenderLinkIcons
+                links={visibleSenderLinks}
+                className="mt-6"
+              />
+            )}
           </div>
         </motion.div>
 
