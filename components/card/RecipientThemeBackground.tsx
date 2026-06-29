@@ -8,7 +8,7 @@ export function themeEmoji(theme: Theme) {
   return theme === 'birthday' ? '🎁' : theme === 'farewell' ? '💌' : '✨';
 }
 
-function Confetti() {
+export function Confetti() {
   const pieces = useMemo(
     () =>
       Array.from({ length: 24 }, (_, i) => ({
@@ -116,7 +116,7 @@ export function ThankYouAnimation() {
   );
 }
 
-function FarewellAnimation() {
+export function FarewellAnimation() {
   const petals = useMemo(
     () =>
       Array.from({ length: 18 }, (_, i) => ({

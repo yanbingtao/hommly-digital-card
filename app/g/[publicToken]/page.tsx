@@ -10,7 +10,9 @@ import { HommlyFooter, HommlyFooterText } from '@/components/card/HommlyFooter';
 import { SignatureGreetingPage } from '@/components/card/SignatureGreetingPage';
 import {
   RecipientThemeBackground,
+  Confetti,
   ThankYouAnimation,
+  FarewellAnimation,
   themeEmoji,
 } from '@/components/card/RecipientThemeBackground';
 import { Loader2 } from 'lucide-react';
