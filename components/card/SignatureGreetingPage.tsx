@@ -23,10 +23,10 @@ export function SignatureGreetingPage() {
           </motion.div>
           <h1 className="text-2xl font-semibold text-stone-700">A little surprise for you</h1>
           <p className="mt-3 text-sm leading-relaxed text-stone-500 sm:text-base">
-            This little gift was chosen with you in mind.
+            A small gift to brighten the moment.
           </p>
           <p className="mt-2 text-sm leading-relaxed text-stone-500 sm:text-base">
-            May it bring a warm smile to your day.
+            May it bring a little joy to your day.
           </p>
         </motion.div>
       </div>
