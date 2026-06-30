@@ -4,6 +4,8 @@ import { getSupabase, getConnectionErrorMessage } from './supabase';
 import { assertAdminAuthenticated } from './admin-auth';
 import { DigitalCard, CardWithOrder } from './types';
 import crypto from 'crypto';
+import { resolveViewPinFields, verifyViewPin } from './view-pin-crypto';
+import { isValidViewPin } from './view-pin';
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -147,6 +149,8 @@ export async function updateCard(
     theme?: string;
     show_sender_links?: boolean;
     sender_links?: Record<string, unknown> | null;
+    view_pin_enabled?: boolean;
+    view_pin_hash?: string | null;
   }
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
@@ -178,6 +182,8 @@ export async function publishCard(
     theme?: string;
     show_sender_links?: boolean;
     sender_links?: Record<string, unknown> | null;
+    view_pin_enabled?: boolean;
+    view_pin_hash?: string | null;
   }
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
@@ -189,6 +195,8 @@ export async function publishCard(
         theme: content.theme || 'thank_you',
         show_sender_links: content.show_sender_links ?? false,
         sender_links: content.show_sender_links ? content.sender_links ?? null : null,
+        view_pin_enabled: content.view_pin_enabled ?? false,
+        view_pin_hash: content.view_pin_enabled ? content.view_pin_hash ?? null : null,
         status: 'published',
         published_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -204,6 +212,51 @@ export async function publishCard(
     return { card: data as DigitalCard | null, error: null };
   } catch (err: unknown) {
     return { card: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
+export async function prepareViewPinForSave(
+  enabled: boolean,
+  pin: string,
+  existingHash: string | null
+): Promise<{
+  view_pin_enabled: boolean;
+  view_pin_hash: string | null;
+  error: string | null;
+}> {
+  return resolveViewPinFields(enabled, pin, existingHash);
+}
+
+export async function verifyCardViewPin(
+  publicToken: string,
+  pin: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (!isValidViewPin(pin)) {
+      return { success: false, error: 'PIN must be 4–6 digits.' };
+    }
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('digital_cards')
+      .select('view_pin_enabled, view_pin_hash')
+      .eq('public_token', publicToken)
+      .maybeSingle();
+
+    if (error) {
+      return { success: false, error: null };
+    }
+
+    if (!data?.view_pin_enabled || !data.view_pin_hash) {
+      return { success: true, error: null };
+    }
+
+    return {
+      success: verifyViewPin(pin, data.view_pin_hash),
+      error: null,
+    };
+  } catch (err: unknown) {
+    return { success: false, error: getConnectionErrorMessage(err) };
   }
 }
 

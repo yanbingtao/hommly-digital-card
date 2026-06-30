@@ -12,7 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Loader2, Send, Eye, Heart, Sparkles, PartyPopper, CloudRain } from 'lucide-react';
+import { Loader2, Send, Eye, Heart, Sparkles, PartyPopper, CloudRain, Lock } from 'lucide-react';
+import { prepareViewPinForSave } from '@/lib/actions';
 import {
   buildSenderLinksFromForm,
   EMPTY_SENDER_LINK_FORM,
@@ -49,13 +50,15 @@ export default function EditCardPage() {
   const [card, setCard] = useState<CardWithOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
 
   const [form, setForm] = useState({
     message: '',
     theme: 'thank_you' as Theme,
     show_sender_links: false,
     sender_links: { ...EMPTY_SENDER_LINK_FORM } as SenderLinkFormInputs,
+    view_pin_enabled: false,
+    view_pin: '',
+    view_pin_is_set: false,
   });
 
   const loadCard = useCallback(async () => {
@@ -81,6 +84,9 @@ export default function EditCardPage() {
         theme: (data.theme as Theme) || 'thank_you',
         show_sender_links: Boolean(data.show_sender_links),
         sender_links: senderLinksToFormInputs(storedLinks),
+        view_pin_enabled: Boolean(data.view_pin_enabled),
+        view_pin: '',
+        view_pin_is_set: Boolean(data.view_pin_hash),
       });
     } catch {
       toast.error('Failed to load card');
@@ -114,6 +120,17 @@ export default function EditCardPage() {
         return;
       }
 
+      const pinResult = await prepareViewPinForSave(
+        form.view_pin_enabled,
+        form.view_pin,
+        card?.view_pin_hash ?? null
+      );
+      if (pinResult.error) {
+        toast.error(pinResult.error);
+        setPublishing(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('digital_cards')
         .update({
@@ -121,6 +138,8 @@ export default function EditCardPage() {
           theme: form.theme,
           show_sender_links: form.show_sender_links,
           sender_links: form.show_sender_links ? senderLinks : null,
+          view_pin_enabled: pinResult.view_pin_enabled,
+          view_pin_hash: pinResult.view_pin_hash,
           status: 'published',
           published_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -141,6 +160,9 @@ export default function EditCardPage() {
         theme: (data.theme as Theme) || 'thank_you',
         show_sender_links: Boolean(data.show_sender_links),
         sender_links: senderLinksToFormInputs(storedLinks),
+        view_pin_enabled: Boolean(data.view_pin_enabled),
+        view_pin: '',
+        view_pin_is_set: Boolean(data.view_pin_hash),
       });
       toast.success(
         isPublished
@@ -174,6 +196,10 @@ export default function EditCardPage() {
   }
 
   const recipientUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/g/${card.public_token}`;
+
+  const handlePreview = () => {
+    window.open(recipientUrl, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -353,14 +379,76 @@ export default function EditCardPage() {
 
             <Separator />
 
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-medium text-stone-800">Viewing PIN, optional</h3>
+                <p className="mt-1 text-xs text-stone-500">
+                  Require a PIN so only your recipient can open the message.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-3">
+                <div>
+                  <Label htmlFor="view_pin_enabled" className="text-sm text-stone-700">
+                    Require PIN to view
+                  </Label>
+                  <p className="mt-1 text-xs text-stone-500">
+                    Your recipient will need the PIN you set before they can read your message.
+                  </p>
+                </div>
+                <Switch
+                  id="view_pin_enabled"
+                  checked={form.view_pin_enabled}
+                  onCheckedChange={(checked) =>
+                    setForm({
+                      ...form,
+                      view_pin_enabled: checked,
+                      view_pin: checked ? form.view_pin : '',
+                    })
+                  }
+                  className="data-[state=checked]:bg-rose-500"
+                />
+              </div>
+
+              {form.view_pin_enabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="view_pin" className="flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5 text-stone-400" />
+                    Viewing PIN (4–6 digits)
+                  </Label>
+                  <Input
+                    id="view_pin"
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={form.view_pin}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        view_pin: e.target.value.replace(/\D/g, ''),
+                      })
+                    }
+                    placeholder={form.view_pin_is_set ? 'Leave blank to keep current PIN' : 'e.g. 1234'}
+                  />
+                  {form.view_pin_is_set && !form.view_pin && (
+                    <p className="text-xs text-emerald-700">A PIN is already set for this card.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setShowPreview(!showPreview)}
+                onClick={handlePreview}
               >
                 <Eye className="mr-2 h-4 w-4" />
-                {showPreview ? 'Hide Preview' : 'Preview Card'}
+                Preview Card
               </Button>
               <Button
                 className="flex-1 bg-rose-500 hover:bg-rose-600"
@@ -391,44 +479,7 @@ export default function EditCardPage() {
             )}
           </CardContent>
         </Card>
-
-        {showPreview && (
-          <div className="mt-6">
-            <h3 className="mb-3 text-sm font-medium text-stone-600">Preview</h3>
-            <ThemePreview form={form} />
-          </div>
-        )}
       </main>
-    </div>
-  );
-}
-
-function ThemePreview({ form }: { form: { message: string; theme: Theme } }) {
-  if (form.theme === 'birthday') {
-    return (
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100 p-6 text-center shadow-sm">
-        <div className="mb-4 text-4xl">🎉</div>
-        <h2 className="text-lg font-bold text-amber-800">Happy Birthday!</h2>
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-amber-900">{form.message || 'Your message will appear here...'}</p>
-      </div>
-    );
-  }
-
-  if (form.theme === 'farewell') {
-    return (
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-b from-slate-100 to-stone-200 p-6 text-center shadow-sm">
-        <div className="mb-4 text-4xl">💌</div>
-        <h2 className="text-lg font-semibold text-slate-700">A special message for you</h2>
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{form.message || 'Your message will appear here...'}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="overflow-hidden rounded-2xl bg-[#fdf6e3] p-6 text-center shadow-sm">
-      <div className="mb-4 text-4xl">✨</div>
-      <h2 className="text-lg font-semibold text-stone-700">A heartfelt message</h2>
-      <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-stone-600">{form.message || 'Your message will appear here...'}</p>
     </div>
   );
 }

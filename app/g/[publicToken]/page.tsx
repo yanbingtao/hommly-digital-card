@@ -3,11 +3,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { CardWithOrder, Theme } from '@/lib/types';
+import { RecipientCardWithOrder, Theme } from '@/lib/types';
 import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { isRecipientCardUnavailable, isValidPublicToken } from '@/lib/card-availability';
+import {
+  RECIPIENT_CARD_CONTENT_SELECT,
+  RECIPIENT_CARD_META_SELECT,
+} from '@/lib/recipient-card-fields';
 import { HommlyFooter, HommlyFooterText } from '@/components/card/HommlyFooter';
 import { SignatureGreetingPage } from '@/components/card/SignatureGreetingPage';
+import { ViewPinScreen } from '@/components/card/ViewPinScreen';
 import { SenderLinkIcons } from '@/components/card/SenderLinkIcons';
 import { getVisibleSenderLinks, shouldShowSenderLinks } from '@/lib/sender-links';
 import {
@@ -23,10 +28,32 @@ export default function RecipientViewPage() {
   const params = useParams();
   const publicToken = params.publicToken as string;
 
-  const [card, setCard] = useState<CardWithOrder | null>(null);
+  const [card, setCard] = useState<RecipientCardWithOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
+  const [pinVerified, setPinVerified] = useState(false);
   const [opened, setOpened] = useState(false);
+
+  const fetchCardContent = useCallback(async (): Promise<RecipientCardWithOrder | null> => {
+    if (!isValidPublicToken(publicToken)) return null;
+
+    try {
+      const supabase = createBrowserSupabase();
+      const { data, error } = await supabase
+        .from('digital_cards')
+        .select(`${RECIPIENT_CARD_META_SELECT}, ${RECIPIENT_CARD_CONTENT_SELECT}`)
+        .eq('public_token', publicToken)
+        .maybeSingle();
+
+      if (error || isRecipientCardUnavailable(data as RecipientCardWithOrder | null) || !data) {
+        return null;
+      }
+
+      return data as unknown as RecipientCardWithOrder;
+    } catch {
+      return null;
+    }
+  }, [publicToken]);
 
   const loadCard = useCallback(async () => {
     setLoading(true);
@@ -42,19 +69,28 @@ export default function RecipientViewPage() {
       const supabase = createBrowserSupabase();
       const { data, error } = await supabase
         .from('digital_cards')
-        .select('*, order:orders(*)')
+        .select(RECIPIENT_CARD_META_SELECT)
         .eq('public_token', publicToken)
         .maybeSingle();
 
-      if (error || isRecipientCardUnavailable(data as CardWithOrder | null)) {
+      if (error || isRecipientCardUnavailable(data as RecipientCardWithOrder | null)) {
         setUnavailable(true);
         setCard(null);
       } else if (!data) {
         setUnavailable(true);
         setCard(null);
       } else {
-        setCard(data as CardWithOrder);
+        const meta = data as unknown as RecipientCardWithOrder;
         setUnavailable(false);
+
+        if (!meta.view_pin_enabled) {
+          const fullCard = await fetchCardContent();
+          setCard(fullCard ?? meta);
+          setPinVerified(true);
+        } else {
+          setCard(meta);
+          setPinVerified(false);
+        }
       }
     } catch {
       setUnavailable(true);
@@ -62,29 +98,29 @@ export default function RecipientViewPage() {
     } finally {
       setLoading(false);
     }
-  }, [publicToken]);
+  }, [publicToken, fetchCardContent]);
+
+  const handlePinVerified = useCallback(async () => {
+    const fullCard = await fetchCardContent();
+    if (fullCard) {
+      setCard(fullCard);
+      setPinVerified(true);
+    }
+  }, [fetchCardContent]);
 
   const handleOpenCard = useCallback(async () => {
     if (!isValidPublicToken(publicToken)) return;
 
-    try {
-      const supabase = createBrowserSupabase();
-      const { data } = await supabase
-        .from('digital_cards')
-        .select('*, order:orders(*)')
-        .eq('public_token', publicToken)
-        .maybeSingle();
+    if (card?.view_pin_enabled && !pinVerified) return;
 
-      if (data && !isRecipientCardUnavailable(data as CardWithOrder)) {
-        setCard(data as CardWithOrder);
-        setUnavailable(false);
-      }
-    } catch {
-      // Keep the last loaded card if refresh fails.
+    const fullCard = await fetchCardContent();
+    if (fullCard) {
+      setCard(fullCard);
+      setUnavailable(false);
     }
 
     setOpened(true);
-  }, [publicToken]);
+  }, [publicToken, card?.view_pin_enabled, pinVerified, fetchCardContent]);
 
   useEffect(() => {
     loadCard();
@@ -102,6 +138,16 @@ export default function RecipientViewPage() {
     return <SignatureGreetingPage />;
   }
 
+  if (card.view_pin_enabled && !pinVerified) {
+    return (
+      <ViewPinScreen
+        theme={card.theme as Theme}
+        publicToken={publicToken}
+        onVerified={() => void handlePinVerified()}
+      />
+    );
+  }
+
   if (!opened) {
     return (
       <OpeningScreen
@@ -111,7 +157,7 @@ export default function RecipientViewPage() {
     );
   }
 
-  return <CardReveal card={card} />;
+  return <CardReveal card={card} pinVerified={pinVerified} />;
 }
 
 function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) {
@@ -157,7 +203,7 @@ function CardReveal({
   card,
   pinVerified = true,
 }: {
-  card: CardWithOrder;
+  card: RecipientCardWithOrder;
   pinVerified?: boolean;
 }) {
   const theme = card.theme as Theme;
