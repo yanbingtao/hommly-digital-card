@@ -22,6 +22,8 @@ export interface DigitalCard {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  first_published_at?: string | null;
+  expires_at_override?: string | null;
 }
 
 export type Theme = 'thank_you' | 'birthday' | 'farewell';

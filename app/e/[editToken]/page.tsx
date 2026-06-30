@@ -12,8 +12,16 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Loader2, Send, Eye, Heart, Sparkles, PartyPopper, CloudRain, Lock } from 'lucide-react';
+import { Loader2, Send, Eye, Heart, Sparkles, PartyPopper, CloudRain, Lock, CalendarClock, Link2 } from 'lucide-react';
 import { prepareViewPinForSave } from '@/lib/actions';
+import {
+  CARD_AVAILABILITY_MONTHS,
+  formatCardExpiryDate,
+  formatCardTimeRemaining,
+  formatFirstPublishedDateTime,
+  hasExpiryOverride,
+  isCardExpired,
+} from '@/lib/card-expiry';
 import {
   buildSenderLinksFromForm,
   EMPTY_SENDER_LINK_FORM,
@@ -77,7 +85,8 @@ export default function EditCardPage() {
         return;
       }
 
-      setCard(data as CardWithOrder);
+      const loaded = data as CardWithOrder;
+      setCard(loaded);
       const storedLinks = parseSenderLinksFromDb(data.sender_links);
       setForm({
         message: data.message ?? '',
@@ -103,6 +112,10 @@ export default function EditCardPage() {
   const isPublished = card?.status === 'published';
 
   const handlePublish = async () => {
+    if (card && isCardExpired(card)) {
+      toast.error('This card has expired. Links are disabled until Hommly reactivates it.');
+      return;
+    }
     if (!form.message.trim()) {
       toast.error('Please write your message before publishing');
       return;
@@ -131,19 +144,25 @@ export default function EditCardPage() {
         return;
       }
 
+      const now = new Date().toISOString();
+      const publishUpdate: Record<string, unknown> = {
+        message: form.message,
+        theme: form.theme,
+        show_sender_links: form.show_sender_links,
+        sender_links: form.show_sender_links ? senderLinks : null,
+        view_pin_enabled: pinResult.view_pin_enabled,
+        view_pin_hash: pinResult.view_pin_hash,
+        status: 'published',
+        published_at: now,
+        updated_at: now,
+      };
+      if (!card?.first_published_at) {
+        publishUpdate.first_published_at = now;
+      }
+
       const { data, error } = await supabase
         .from('digital_cards')
-        .update({
-          message: form.message,
-          theme: form.theme,
-          show_sender_links: form.show_sender_links,
-          sender_links: form.show_sender_links ? senderLinks : null,
-          view_pin_enabled: pinResult.view_pin_enabled,
-          view_pin_hash: pinResult.view_pin_hash,
-          status: 'published',
-          published_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(publishUpdate)
         .eq('edit_token', editToken)
         .select('*, order:orders(*)')
         .single();
@@ -195,11 +214,36 @@ export default function EditCardPage() {
     );
   }
 
+  if (isCardExpired(card)) {
+    const expiredOn = formatCardExpiryDate(card);
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
+        <div className="max-w-sm text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-400">
+            <CalendarClock className="h-6 w-6" />
+          </div>
+          <p className="text-lg font-medium text-stone-700">This card has expired</p>
+          <p className="mt-2 text-sm text-stone-500">
+            The edit and viewing links are no longer active
+            {expiredOn ? <> as of <span className="font-medium text-stone-600">{expiredOn}</span></> : ''}.
+          </p>
+          <p className="mt-3 text-sm text-stone-500">
+            Please contact Hommly if you need this card reactivated.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const recipientUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/g/${card.public_token}`;
 
   const handlePreview = () => {
     window.open(recipientUrl, '_blank', 'noopener,noreferrer');
   };
+
+  const expiryDate = formatCardExpiryDate(card);
+  const firstPublishedAt = formatFirstPublishedDateTime(card);
+  const timeRemaining = formatCardTimeRemaining(card);
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -222,6 +266,37 @@ export default function EditCardPage() {
       <main className="mx-auto max-w-xl px-4 py-6">
         <Card className="border-stone-200">
           <CardContent className="space-y-5 p-5">
+            <div className="flex gap-3 rounded-lg border border-stone-200 bg-stone-50/60 px-3 py-3">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" />
+              <div className="text-sm">
+                <p className="font-medium text-stone-700">Link availability</p>
+                {expiryDate ? (
+                  <>
+                    {firstPublishedAt && (
+                      <p className="mt-1 text-stone-600">
+                        First published{' '}
+                        <span className="font-medium">{firstPublishedAt}</span>
+                      </p>
+                    )}
+                    <p className="mt-1 text-stone-600">
+                      Available until <span className="font-medium">{expiryDate}</span>
+                    </p>
+                    {timeRemaining && (
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        About {timeRemaining} remaining
+                        {hasExpiryOverride(card) ? ' (custom expiry)' : ''}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1 text-stone-600">
+                    After you publish, this card stays available for {CARD_AVAILABILITY_MONTHS} months.
+                    Republishing does not extend the time.
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="message">Your Message</Label>
               <Textarea
@@ -257,24 +332,23 @@ export default function EditCardPage() {
               </div>
             </div>
 
-            <Separator />
+            <div className="space-y-1 pt-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-400">Optional</p>
+              <p className="text-sm text-stone-600">Add extras only if you want them.</p>
+            </div>
 
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-stone-800">Share your links, optional</h3>
-                <p className="mt-1 text-xs text-stone-500">
-                  Add links you are comfortable sharing with the recipient.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-3">
-                <div>
-                  <Label htmlFor="show_sender_links" className="text-sm text-stone-700">
-                    Show my links on this card
-                  </Label>
-                  <p className="mt-1 text-xs text-stone-500">
-                    These links will appear quietly below your message if you choose to share them.
-                  </p>
+            <div className="overflow-hidden rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-sky-50/40 to-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 ring-1 ring-sky-200/60">
+                    <Link2 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <Label htmlFor="show_sender_links" className="text-sm font-semibold text-sky-950">
+                      Share your links
+                    </Label>
+                    <p className="text-xs text-sky-800/65">Social icons below your message</p>
+                  </div>
                 </div>
                 <Switch
                   id="show_sender_links"
@@ -282,14 +356,14 @@ export default function EditCardPage() {
                   onCheckedChange={(checked) =>
                     setForm({ ...form, show_sender_links: checked })
                   }
-                  className="data-[state=checked]:bg-rose-500"
+                  className="shrink-0 data-[state=checked]:bg-sky-500"
                 />
               </div>
 
               {form.show_sender_links && (
-                <div className="space-y-3">
+                <div className="space-y-3 border-t border-sky-100 bg-white/70 px-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="whatsapp">WhatsApp number</Label>
+                    <Label htmlFor="whatsapp" className="text-stone-700">WhatsApp</Label>
                     <Input
                       id="whatsapp"
                       value={form.sender_links.whatsapp}
@@ -300,10 +374,11 @@ export default function EditCardPage() {
                         })
                       }
                       placeholder="e.g. 6591234567"
+                      className="border-sky-100 bg-white focus-visible:ring-sky-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="instagram">Instagram username or URL</Label>
+                    <Label htmlFor="instagram" className="text-stone-700">Instagram</Label>
                     <Input
                       id="instagram"
                       value={form.sender_links.instagram}
@@ -314,10 +389,11 @@ export default function EditCardPage() {
                         })
                       }
                       placeholder="e.g. @username"
+                      className="border-sky-100 bg-white focus-visible:ring-sky-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="linkedin">LinkedIn URL</Label>
+                    <Label htmlFor="linkedin" className="text-stone-700">LinkedIn</Label>
                     <Input
                       id="linkedin"
                       value={form.sender_links.linkedin}
@@ -328,10 +404,11 @@ export default function EditCardPage() {
                         })
                       }
                       placeholder="https://linkedin.com/in/username"
+                      className="border-sky-100 bg-white focus-visible:ring-sky-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="tiktok">TikTok username or URL</Label>
+                    <Label htmlFor="tiktok" className="text-stone-700">TikTok</Label>
                     <Input
                       id="tiktok"
                       value={form.sender_links.tiktok}
@@ -342,10 +419,11 @@ export default function EditCardPage() {
                         })
                       }
                       placeholder="e.g. @username"
+                      className="border-sky-100 bg-white focus-visible:ring-sky-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="website">Website URL</Label>
+                    <Label htmlFor="website" className="text-stone-700">Website</Label>
                     <Input
                       id="website"
                       value={form.sender_links.website}
@@ -356,10 +434,11 @@ export default function EditCardPage() {
                         })
                       }
                       placeholder="https://example.com"
+                      className="border-sky-100 bg-white focus-visible:ring-sky-300"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email" className="text-stone-700">Email</Label>
                     <Input
                       id="email"
                       type="email"
@@ -371,30 +450,25 @@ export default function EditCardPage() {
                         })
                       }
                       placeholder="hello@example.com"
+                      className="border-sky-100 bg-white focus-visible:ring-sky-300"
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            <Separator />
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-stone-800">Viewing PIN, optional</h3>
-                <p className="mt-1 text-xs text-stone-500">
-                  Require a PIN so only your recipient can open the message.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-3">
-                <div>
-                  <Label htmlFor="view_pin_enabled" className="text-sm text-stone-700">
-                    Require PIN to view
-                  </Label>
-                  <p className="mt-1 text-xs text-stone-500">
-                    Your recipient will need the PIN you set before they can read your message.
-                  </p>
+            <div className="overflow-hidden rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 via-violet-50/40 to-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 ring-1 ring-violet-200/60">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <Label htmlFor="view_pin_enabled" className="text-sm font-semibold text-violet-950">
+                      Viewing PIN
+                    </Label>
+                    <p className="text-xs text-violet-800/65">Recipient enters PIN before opening</p>
+                  </div>
                 </div>
                 <Switch
                   id="view_pin_enabled"
@@ -406,15 +480,14 @@ export default function EditCardPage() {
                       view_pin: checked ? form.view_pin : '',
                     })
                   }
-                  className="data-[state=checked]:bg-rose-500"
+                  className="shrink-0 data-[state=checked]:bg-violet-500"
                 />
               </div>
 
               {form.view_pin_enabled && (
-                <div className="space-y-2">
-                  <Label htmlFor="view_pin" className="flex items-center gap-1.5">
-                    <Lock className="h-3.5 w-3.5 text-stone-400" />
-                    Viewing PIN (4–6 digits)
+                <div className="space-y-2 border-t border-violet-100 bg-white/70 px-4 py-4">
+                  <Label htmlFor="view_pin" className="text-stone-700">
+                    PIN (4–6 digits)
                   </Label>
                   <Input
                     id="view_pin"
@@ -431,9 +504,10 @@ export default function EditCardPage() {
                       })
                     }
                     placeholder={form.view_pin_is_set ? 'Leave blank to keep current PIN' : 'e.g. 1234'}
+                    className="border-violet-100 bg-white text-center text-lg tracking-widest focus-visible:ring-violet-300"
                   />
                   {form.view_pin_is_set && !form.view_pin && (
-                    <p className="text-xs text-emerald-700">A PIN is already set for this card.</p>
+                    <p className="text-xs text-violet-700">Current PIN is saved — enter a new one to change it.</p>
                   )}
                 </div>
               )}

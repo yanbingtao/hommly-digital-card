@@ -6,6 +6,7 @@ import { DigitalCard, CardWithOrder } from './types';
 import crypto from 'crypto';
 import { resolveViewPinFields, verifyViewPin } from './view-pin-crypto';
 import { isValidViewPin } from './view-pin';
+import { getReactivationExpiryDate } from './card-expiry';
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -188,6 +189,13 @@ export async function publishCard(
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
     const supabase = getSupabase();
+    const { data: existing } = await supabase
+      .from('digital_cards')
+      .select('first_published_at')
+      .eq('edit_token', editToken)
+      .maybeSingle();
+
+    const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('digital_cards')
       .update({
@@ -198,8 +206,9 @@ export async function publishCard(
         view_pin_enabled: content.view_pin_enabled ?? false,
         view_pin_hash: content.view_pin_enabled ? content.view_pin_hash ?? null : null,
         status: 'published',
-        published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        published_at: now,
+        ...(existing?.first_published_at ? {} : { first_published_at: now }),
+        updated_at: now,
       })
       .eq('edit_token', editToken)
       .select()
@@ -258,6 +267,53 @@ export async function verifyCardViewPin(
   } catch (err: unknown) {
     return { success: false, error: getConnectionErrorMessage(err) };
   }
+}
+
+export async function setCardExpiryOverride(
+  cardId: string,
+  expiresAt: string | null
+): Promise<{ card: CardWithOrder | null; error: string | null }> {
+  try {
+    await assertAdminAuthenticated();
+    const supabase = getSupabase();
+
+    let expiresAtOverride: string | null = null;
+    if (expiresAt) {
+      const parsed = new Date(expiresAt);
+      if (Number.isNaN(parsed.getTime())) {
+        return { card: null, error: 'Invalid date.' };
+      }
+      expiresAtOverride = parsed.toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from('digital_cards')
+      .update({
+        expires_at_override: expiresAtOverride,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cardId)
+      .select('*, order:orders(*)')
+      .single();
+
+    if (error) {
+      return { card: null, error: error.message };
+    }
+
+    return { card: data as CardWithOrder, error: null };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { card: null, error: 'Unauthorized. Please sign in again.' };
+    }
+    return { card: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
+export async function reactivateCard(
+  cardId: string
+): Promise<{ card: CardWithOrder | null; error: string | null }> {
+  const expiresAt = getReactivationExpiryDate().toISOString();
+  return setCardExpiryOverride(cardId, expiresAt);
 }
 
 export async function deleteCard(

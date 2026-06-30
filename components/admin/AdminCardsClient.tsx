@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { createCard, deleteCard, getCards } from '@/lib/actions';
+import { createCard, deleteCard, getCards, reactivateCard, setCardExpiryOverride } from '@/lib/actions';
+import {
+  CARD_AVAILABILITY_MONTHS,
+  formatCardExpiryDateTime,
+  formatStoredExpiryOverride,
+  getCardExpiresAt,
+  hasExpiryOverride,
+  isCardExpired,
+  toDatetimeLocalInputValue,
+} from '@/lib/card-expiry';
 import { generateQRCodeDataURL, downloadDataUrl, orderQrFilename } from '@/lib/qr';
 import { copyToClipboard } from '@/lib/copy';
 import { CardWithOrder } from '@/lib/types';
@@ -22,9 +31,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download } from 'lucide-react';
+import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, type LucideIcon } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
+import { cn } from '@/lib/utils';
 
 interface AdminCardsClientProps {
   initialCards: CardWithOrder[];
@@ -71,6 +81,83 @@ function groupCardsByDay(cards: CardWithOrder[]) {
   }));
 }
 
+function CardLinkRow({
+  label,
+  url,
+  copyKey,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  url: string;
+  copyKey: string;
+  copied: boolean;
+  onCopy: (text: string, field: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">{label}</p>
+      <div className="flex items-center gap-1 rounded-lg bg-white/80 py-1 pl-2.5 pr-1 ring-1 ring-stone-200/70">
+        <button
+          type="button"
+          className="min-w-0 flex-1 truncate text-left font-mono text-[11px] text-stone-600 transition-colors hover:text-stone-900"
+          title={url}
+          onClick={() => void onCopy(url, copyKey)}
+        >
+          {url}
+        </button>
+        <button
+          type="button"
+          aria-label={`Copy ${label}`}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
+          onClick={() => void onCopy(url, copyKey)}
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CardQuickAction({
+  label,
+  icon: Icon,
+  onClick,
+  variant = 'default',
+  indicator,
+  disabled = false,
+}: {
+  label: string;
+  icon: LucideIcon;
+  onClick: () => void;
+  variant?: 'default' | 'danger' | 'success';
+  indicator?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'relative flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 text-[10px] font-medium transition-all active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40',
+        variant === 'danger'
+          ? 'text-stone-400 hover:bg-red-50 hover:text-red-600'
+          : variant === 'success'
+          ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+          : 'text-stone-500 hover:bg-white hover:text-stone-800 hover:shadow-sm'
+      )}
+    >
+      {indicator && (
+        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-violet-500 ring-2 ring-stone-50" />
+      )}
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export function AdminCardsClient({ initialCards, initialError }: AdminCardsClientProps) {
   const [cards, setCards] = useState<CardWithOrder[]>(initialCards);
   const [loading, setLoading] = useState(false);
@@ -82,6 +169,10 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [origin, setOrigin] = useState(getConfiguredSiteOrigin);
   const [cardToDelete, setCardToDelete] = useState<CardWithOrder | null>(null);
+  const [cardForExpiry, setCardForExpiry] = useState<CardWithOrder | null>(null);
+  const [expiryInput, setExpiryInput] = useState('');
+  const [savingExpiry, setSavingExpiry] = useState(false);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -182,6 +273,79 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     setSelectedCard(card);
   };
 
+  const openExpiryDialog = (card: CardWithOrder) => {
+    const effectiveExpiry = getCardExpiresAt(card);
+    const initialValue = card.expires_at_override
+      ? toDatetimeLocalInputValue(card.expires_at_override)
+      : effectiveExpiry
+      ? toDatetimeLocalInputValue(effectiveExpiry.toISOString())
+      : '';
+    setExpiryInput(initialValue);
+    setCardForExpiry(card);
+  };
+
+  const updateCardInState = (updated: CardWithOrder) => {
+    setCards((current) => current.map((card) => (card.id === updated.id ? updated : card)));
+    if (selectedCard?.id === updated.id) {
+      setSelectedCard(updated);
+    }
+    if (cardForExpiry?.id === updated.id) {
+      setCardForExpiry(updated);
+    }
+  };
+
+  const handleSaveExpiry = async () => {
+    if (!cardForExpiry) return;
+    if (!expiryInput) {
+      toast.error('Please choose a validation date and time');
+      return;
+    }
+
+    setSavingExpiry(true);
+    const { card, error } = await setCardExpiryOverride(cardForExpiry.id, expiryInput);
+    if (error || !card) {
+      toast.error('Failed to save expiry: ' + (error || 'Unknown error'));
+      setSavingExpiry(false);
+      return;
+    }
+
+    updateCardInState(card);
+    setSavingExpiry(false);
+    setCardForExpiry(null);
+    toast.success('Validation date updated');
+  };
+
+  const handleClearExpiryOverride = async () => {
+    if (!cardForExpiry) return;
+
+    setSavingExpiry(true);
+    const { card, error } = await setCardExpiryOverride(cardForExpiry.id, null);
+    if (error || !card) {
+      toast.error('Failed to reset expiry: ' + (error || 'Unknown error'));
+      setSavingExpiry(false);
+      return;
+    }
+
+    updateCardInState(card);
+    setSavingExpiry(false);
+    setCardForExpiry(null);
+    toast.success('Using default 6-month validation again');
+  };
+
+  const handleReactivate = async (card: CardWithOrder) => {
+    setReactivatingId(card.id);
+    const { card: updated, error } = await reactivateCard(card.id);
+    if (error || !updated) {
+      toast.error('Failed to reactivate: ' + (error || 'Unknown error'));
+      setReactivatingId(null);
+      return;
+    }
+
+    updateCardInState(updated);
+    setReactivatingId(null);
+    toast.success(`Card reactivated for ${CARD_AVAILABILITY_MONTHS} more months`);
+  };
+
   const handleDelete = async () => {
     if (!cardToDelete) return;
 
@@ -217,8 +381,15 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     toast.success('QR codes downloaded');
   };
 
-  const getStatusBadge = (status: string) => {
-    if (status === 'published') {
+  const getStatusBadge = (card: CardWithOrder) => {
+    if (isCardExpired(card)) {
+      return (
+        <span className="inline-flex items-center rounded-full bg-stone-200 px-2.5 py-0.5 text-xs font-medium text-stone-700">
+          Expired
+        </span>
+      );
+    }
+    if (card.status === 'published') {
       return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Published</span>;
     }
     return <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Draft</span>;
@@ -231,16 +402,18 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   const cardsByDay = useMemo(() => groupCardsByDay(filteredCards), [filteredCards]);
 
   return (
-    <div className="min-h-screen bg-stone-50">
-      <header className="border-b border-stone-200 bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-stone-100/80 to-stone-50">
+      <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-2">
-            <Gift className="h-6 w-6 text-rose-500" />
-            <h1 className="text-lg font-semibold text-stone-800">Hommly Admin</h1>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 ring-1 ring-rose-100">
+              <Gift className="h-5 w-5 text-rose-500" />
+            </div>
+            <h1 className="text-lg font-semibold tracking-tight text-stone-800">Hommly Admin</h1>
           </div>
           <div className="flex items-center gap-2">
             <AdminLogoutButton />
-            <Button onClick={() => setShowCreateForm(true)} size="sm" className="bg-rose-500 hover:bg-rose-600">
+            <Button onClick={() => setShowCreateForm(true)} size="sm" className="rounded-lg bg-rose-500 shadow-sm hover:bg-rose-600">
               <Plus className="mr-1 h-4 w-4" />
               New Card
             </Button>
@@ -282,14 +455,14 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
 
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-stone-500">All Cards</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-stone-400">All Cards</h2>
             <div className="relative w-full sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by order number..."
-                className="pl-9"
+                className="rounded-lg border-stone-200 bg-white pl-9 shadow-sm"
               />
             </div>
           </div>
@@ -311,83 +484,100 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
             <div className="space-y-8">
               {cardsByDay.map((section) => (
                 <section key={section.dateKey} className="space-y-3">
-                  <h3 className="text-sm font-semibold text-stone-700">{section.label}</h3>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-sm font-medium text-stone-700">{section.label}</h3>
+                    <div className="h-px flex-1 bg-stone-200/80" />
+                    <span className="text-xs text-stone-400">{section.cards.length} cards</span>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {section.cards.map((card) => {
                 const editUrl = `${origin}/e/${card.edit_token}`;
                 const recipientUrl = `${origin}/g/${card.public_token}`;
+                const expired = isCardExpired(card);
                 return (
-                  <Card key={card.id} className="border-stone-200 transition-shadow hover:shadow-sm">
+                  <Card
+                    key={card.id}
+                    className={cn(
+                      'overflow-hidden rounded-2xl border-0 bg-white shadow-sm ring-1 ring-stone-200/70 transition-all',
+                      expired ? 'opacity-75' : 'hover:-translate-y-0.5 hover:shadow-md'
+                    )}
+                  >
                     <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-stone-800">{card.order.order_number}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold tracking-tight text-stone-900">
+                            {card.order.order_number}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-stone-400">
+                            {expired
+                              ? 'Links disabled'
+                              : card.status === 'published'
+                              ? 'Live card'
+                              : 'Awaiting publish'}
+                          </p>
                         </div>
-                        {getStatusBadge(card.status)}
-                      </div>
-                      <Separator className="my-3" />
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            readOnly
-                            value={editUrl}
-                            className="h-8 text-xs"
-                            onClick={(e) => (e.target as HTMLInputElement).select()}
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => handleCopy(editUrl, `edit-${card.id}`)}
-                          >
-                            {copiedField === `edit-${card.id}` ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            readOnly
-                            value={recipientUrl}
-                            className="h-8 text-xs"
-                            onClick={(e) => (e.target as HTMLInputElement).select()}
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => handleCopy(recipientUrl, `recipient-${card.id}`)}
-                          >
-                            {copiedField === `recipient-${card.id}` ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-                          </Button>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          {getStatusBadge(card)}
+                          {hasExpiryOverride(card) && (
+                            <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 ring-1 ring-violet-100">
+                              Custom expiry
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs"
+
+                      <div className={cn('mt-4 space-y-2.5 rounded-xl bg-stone-50/90 p-2.5 ring-1 ring-stone-100', expired && 'opacity-60')}>
+                        <CardLinkRow
+                          label="Buyer edit"
+                          url={editUrl}
+                          copyKey={`edit-${card.id}`}
+                          copied={copiedField === `edit-${card.id}`}
+                          onCopy={handleCopy}
+                        />
+                        <CardLinkRow
+                          label="Recipient view"
+                          url={recipientUrl}
+                          copyKey={`recipient-${card.id}`}
+                          copied={copiedField === `recipient-${card.id}`}
+                          onCopy={handleCopy}
+                        />
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-4 gap-0.5 rounded-xl bg-stone-50 p-1 ring-1 ring-stone-100">
+                        <CardQuickAction
+                          label="QR"
+                          icon={QrCode}
                           onClick={() => openCardDetails(card)}
-                        >
-                          <QrCode className="mr-1 h-3.5 w-3.5" />
-                          QR & Links
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs"
+                          disabled={expired}
+                        />
+                        <CardQuickAction
+                          label="Edit"
+                          icon={Eye}
                           onClick={() => window.open(editUrl, '_blank')}
-                        >
-                          <Eye className="mr-1 h-3.5 w-3.5" />
-                          Edit Page
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                          disabled={expired}
+                        />
+                        {expired ? (
+                          <CardQuickAction
+                            label={reactivatingId === card.id ? '…' : 'Renew'}
+                            icon={reactivatingId === card.id ? Loader2 : RotateCcw}
+                            variant="success"
+                            onClick={() => void handleReactivate(card)}
+                            disabled={reactivatingId === card.id}
+                          />
+                        ) : (
+                          <CardQuickAction
+                            label="Expiry"
+                            icon={CalendarClock}
+                            onClick={() => openExpiryDialog(card)}
+                            indicator={hasExpiryOverride(card)}
+                          />
+                        )}
+                        <CardQuickAction
+                          label="Delete"
+                          icon={Trash2}
+                          variant="danger"
                           onClick={() => setCardToDelete(card)}
-                        >
-                          <Trash2 className="mr-1 h-3.5 w-3.5" />
-                          Delete
-                        </Button>
+                        />
                       </div>
                     </CardContent>
                   </Card>
@@ -419,10 +609,16 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 <div>
                   <p className="text-sm font-semibold text-stone-800">{selectedCard.order.order_number}</p>
                 </div>
-                {getStatusBadge(selectedCard.status)}
+                {getStatusBadge(selectedCard)}
               </div>
 
               <Separator />
+
+              {isCardExpired(selectedCard) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+                  This card has expired. Public links are disabled until you reactivate it.
+                </div>
+              )}
 
               <div className="space-y-3">
                 <div>
@@ -518,6 +714,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
               <div className="flex gap-2">
                 <Button
                   className="flex-1 bg-rose-500 hover:bg-rose-600"
+                  disabled={isCardExpired(selectedCard)}
                   onClick={() =>
                     window.open(`${origin}/e/${selectedCard.edit_token}`, '_blank')
                   }
@@ -528,6 +725,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 <Button
                   variant="outline"
                   className="flex-1"
+                  disabled={isCardExpired(selectedCard)}
                   onClick={() =>
                     window.open(`${origin}/g/${selectedCard.public_token}`, '_blank')
                   }
@@ -537,6 +735,21 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 </Button>
               </div>
 
+              {isCardExpired(selectedCard) && (
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  disabled={reactivatingId === selectedCard.id}
+                  onClick={() => void handleReactivate(selectedCard)}
+                >
+                  {reactivatingId === selectedCard.id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                  )}
+                  Reactivate for {CARD_AVAILABILITY_MONTHS} months
+                </Button>
+              )}
+
               <Button
                 variant="outline"
                 className="w-full text-red-600 hover:bg-red-50 hover:text-red-700"
@@ -545,6 +758,103 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete Card
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!cardForExpiry}
+        onOpenChange={(open) => {
+          if (!open && !savingExpiry) {
+            setCardForExpiry(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Set validation date</DialogTitle>
+          </DialogHeader>
+          {cardForExpiry && (
+            <div className="space-y-4">
+              <p className="text-sm text-stone-600">
+                Order <span className="font-medium text-stone-800">{cardForExpiry.order.order_number}</span>
+              </p>
+
+              <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-stone-400">Currently</p>
+                {isCardExpired(cardForExpiry) ? (
+                  <p className="mt-1 text-stone-700">
+                    Expired on{' '}
+                    <span className="font-medium">{formatCardExpiryDateTime(cardForExpiry)}</span>
+                    <span className="text-stone-500"> — links are disabled</span>
+                  </p>
+                ) : hasExpiryOverride(cardForExpiry) ? (
+                  <p className="mt-1 text-stone-700">
+                    Custom until{' '}
+                    <span className="font-medium">{formatStoredExpiryOverride(cardForExpiry)}</span>
+                  </p>
+                ) : cardForExpiry.status === 'published' ? (
+                  <p className="mt-1 text-stone-700">
+                    Default rule — until{' '}
+                    <span className="font-medium">{formatCardExpiryDateTime(cardForExpiry)}</span>
+                    <span className="text-stone-500"> (6 months from first publish)</span>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-stone-700">
+                    Not published yet — default is 6 months from first publish.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expiry-override">Validation date & time</Label>
+                <Input
+                  id="expiry-override"
+                  type="datetime-local"
+                  value={expiryInput}
+                  onChange={(e) => setExpiryInput(e.target.value)}
+                />
+                <p className="text-xs text-stone-500">
+                  Overrides the default 6-month period. The card is removed after this date.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {isCardExpired(cardForExpiry) && (
+                  <Button
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                    disabled={savingExpiry || reactivatingId === cardForExpiry.id}
+                    onClick={() => void handleReactivate(cardForExpiry)}
+                  >
+                    {reactivatingId === cardForExpiry.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                    )}
+                    Reactivate ({CARD_AVAILABILITY_MONTHS} mo)
+                  </Button>
+                )}
+                <Button
+                  className="flex-1 bg-rose-500 hover:bg-rose-600"
+                  disabled={savingExpiry}
+                  onClick={() => void handleSaveExpiry()}
+                >
+                  {savingExpiry ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save custom expiry
+                </Button>
+                {hasExpiryOverride(cardForExpiry) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    disabled={savingExpiry}
+                    onClick={() => void handleClearExpiryOverride()}
+                  >
+                    Use default
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

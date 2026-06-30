@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { RecipientCardWithOrder, Theme } from '@/lib/types';
 import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { isRecipientCardUnavailable, isValidPublicToken } from '@/lib/card-availability';
+import { isCardExpired } from '@/lib/card-expiry';
 import {
   RECIPIENT_CARD_CONTENT_SELECT,
   RECIPIENT_CARD_META_SELECT,
@@ -45,7 +46,15 @@ export default function RecipientViewPage() {
         .eq('public_token', publicToken)
         .maybeSingle();
 
-      if (error || isRecipientCardUnavailable(data as RecipientCardWithOrder | null) || !data) {
+      if (error || !data) {
+        return null;
+      }
+
+      if (isCardExpired(data)) {
+        return null;
+      }
+
+      if (isRecipientCardUnavailable(data as unknown as RecipientCardWithOrder | null)) {
         return null;
       }
 
@@ -73,10 +82,16 @@ export default function RecipientViewPage() {
         .eq('public_token', publicToken)
         .maybeSingle();
 
-      if (error || isRecipientCardUnavailable(data as RecipientCardWithOrder | null)) {
+      if (error) {
         setUnavailable(true);
         setCard(null);
       } else if (!data) {
+        setUnavailable(true);
+        setCard(null);
+      } else if (isCardExpired(data)) {
+        setUnavailable(true);
+        setCard(null);
+      } else if (isRecipientCardUnavailable(data as unknown as RecipientCardWithOrder | null)) {
         setUnavailable(true);
         setCard(null);
       } else {
