@@ -520,9 +520,11 @@ export default function EditCardPage() {
                 variant="outline"
                 className="flex-1"
                 onClick={handlePreview}
+                disabled={!isPublished}
+                title={!isPublished ? 'Publish your card first to view it' : undefined}
               >
                 <Eye className="mr-2 h-4 w-4" />
-                Preview Card
+                View Card
               </Button>
               <Button
                 className="flex-1 bg-rose-500 hover:bg-rose-600"
