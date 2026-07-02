@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 interface ViewPinScreenProps {
   theme: Theme;
   publicToken: string;
-  onVerified: () => void;
+  onVerified: (pin: string) => void;
 }
 
 export function ViewPinScreen({ theme, publicToken, onVerified }: ViewPinScreenProps) {
@@ -39,7 +39,7 @@ export function ViewPinScreen({ theme, publicToken, onVerified }: ViewPinScreenP
         setPin('');
         return;
       }
-      onVerified();
+      onVerified(pin);
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {

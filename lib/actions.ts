@@ -7,6 +7,8 @@ import crypto from 'crypto';
 import { resolveViewPinFields, verifyViewPin } from './view-pin-crypto';
 import { isValidViewPin } from './view-pin';
 import { getReactivationExpiryDate } from './card-expiry';
+import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
+import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -316,6 +318,64 @@ export async function reactivateCard(
   return setCardExpiryOverride(cardId, expiresAt);
 }
 
+export async function runExpiredPhotoCleanup(): Promise<{
+  result: { scanned: number; cleaned: number; errors: string[] } | null;
+  error: string | null;
+}> {
+  try {
+    await assertAdminAuthenticated();
+    const result = await cleanupExpiredCardPhotos();
+    return { result, error: null };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { result: null, error: 'Unauthorized. Please sign in again.' };
+    }
+    return { result: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
+export async function adminRemoveCardPhoto(
+  cardId: string
+): Promise<{ card: CardWithOrder | null; error: string | null }> {
+  try {
+    await assertAdminAuthenticated();
+    const supabase = getSupabase();
+
+    const { data: card, error: fetchError } = await supabase
+      .from('digital_cards')
+      .select('*, order:orders(*)')
+      .eq('id', cardId)
+      .maybeSingle();
+
+    if (fetchError || !card) {
+      return { card: null, error: fetchError?.message ?? 'Card not found.' };
+    }
+
+    if (card.photo_path) {
+      await deleteCardPhoto(card.photo_path);
+    }
+
+    await clearCardPhotoMetadata(supabase, cardId);
+
+    const { data: updated, error: updateError } = await supabase
+      .from('digital_cards')
+      .select('*, order:orders(*)')
+      .eq('id', cardId)
+      .single();
+
+    if (updateError) {
+      return { card: null, error: updateError.message };
+    }
+
+    return { card: updated as CardWithOrder, error: null };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { card: null, error: 'Unauthorized. Please sign in again.' };
+    }
+    return { card: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
 export async function deleteCard(
   cardId: string
 ): Promise<{ success: boolean; error: string | null }> {
@@ -325,7 +385,7 @@ export async function deleteCard(
 
     const { data: card, error: fetchError } = await supabase
       .from('digital_cards')
-      .select('id, order_id')
+      .select('id, order_id, photo_path')
       .eq('id', cardId)
       .maybeSingle();
 
@@ -335,6 +395,14 @@ export async function deleteCard(
 
     if (!card) {
       return { success: false, error: 'Card not found' };
+    }
+
+    if (card.photo_path) {
+      try {
+        await deleteCardPhoto(card.photo_path);
+      } catch (err: unknown) {
+        console.error('[deleteCard] Photo cleanup failed:', err);
+      }
     }
 
     const { error: deleteError } = await supabase

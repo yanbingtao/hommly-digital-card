@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { createCard, deleteCard, getCards, reactivateCard, setCardExpiryOverride } from '@/lib/actions';
+import { createCard, deleteCard, getCards, reactivateCard, setCardExpiryOverride, runExpiredPhotoCleanup, adminRemoveCardPhoto } from '@/lib/actions';
 import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDateTime,
+  formatFirstPublishedDateTime,
   formatStoredExpiryOverride,
+  formatEffectiveExpiryDateTime,
   getCardExpiresAt,
   hasExpiryOverride,
   isCardExpired,
   toDatetimeLocalInputValue,
 } from '@/lib/card-expiry';
+import { hasCardPhoto } from '@/lib/card-photo';
 import { generateQRCodeDataURL, downloadDataUrl, orderQrFilename } from '@/lib/qr';
 import { copyToClipboard } from '@/lib/copy';
 import { CardWithOrder } from '@/lib/types';
@@ -31,7 +34,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, type LucideIcon } from 'lucide-react';
+import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, type LucideIcon } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
 import { cn } from '@/lib/utils';
@@ -79,6 +82,17 @@ function groupCardsByDay(cards: CardWithOrder[]) {
     label: formatSectionDate(dayCards[0].created_at),
     cards: dayCards,
   }));
+}
+
+function formatPhotoTimestamp(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-SG', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function CardLinkRow({
@@ -173,6 +187,8 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   const [expiryInput, setExpiryInput] = useState('');
   const [savingExpiry, setSavingExpiry] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+  const [cleaningPhotos, setCleaningPhotos] = useState(false);
+  const [removingPhotoId, setRemovingPhotoId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -346,6 +362,46 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     toast.success(`Card reactivated for ${CARD_AVAILABILITY_MONTHS} more months`);
   };
 
+  const handleCleanupExpiredPhotos = async () => {
+    setCleaningPhotos(true);
+    const { result, error } = await runExpiredPhotoCleanup();
+    if (error || !result) {
+      toast.error('Photo cleanup failed: ' + (error || 'Unknown error'));
+      setCleaningPhotos(false);
+      return;
+    }
+
+    await loadCards();
+    setCleaningPhotos(false);
+
+    if (result.errors.length > 0) {
+      toast.warning(
+        `Cleaned ${result.cleaned} of ${result.scanned} photo(s). ${result.errors.length} error(s).`
+      );
+    } else {
+      toast.success(`Cleaned ${result.cleaned} expired photo(s) from ${result.scanned} card(s).`);
+    }
+  };
+
+  const handleAdminRemovePhoto = async (card: CardWithOrder) => {
+    if (!hasCardPhoto(card)) return;
+
+    setRemovingPhotoId(card.id);
+    const { card: updated, error } = await adminRemoveCardPhoto(card.id);
+    if (error || !updated) {
+      toast.error('Failed to remove photo: ' + (error || 'Unknown error'));
+      setRemovingPhotoId(null);
+      return;
+    }
+
+    updateCardInState(updated);
+    if (selectedCard?.id === card.id) {
+      setSelectedCard(updated);
+    }
+    setRemovingPhotoId(null);
+    toast.success('Photo removed from storage');
+  };
+
   const handleDelete = async () => {
     if (!cardToDelete) return;
 
@@ -412,6 +468,20 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
             <h1 className="text-lg font-semibold tracking-tight text-stone-800">Hommly Admin</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg"
+              disabled={cleaningPhotos}
+              onClick={() => void handleCleanupExpiredPhotos()}
+            >
+              {cleaningPhotos ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <ImageIcon className="mr-1 h-4 w-4" />
+              )}
+              Clean expired photos
+            </Button>
             <AdminLogoutButton />
             <Button onClick={() => setShowCreateForm(true)} size="sm" className="rounded-lg bg-rose-500 shadow-sm hover:bg-rose-600">
               <Plus className="mr-1 h-4 w-4" />
@@ -523,6 +593,11 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                               Custom expiry
                             </span>
                           )}
+                          {hasCardPhoto(card) && (
+                            <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 ring-1 ring-sky-100">
+                              Photo
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -619,6 +694,86 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   This card has expired. Public links are disabled until you reactivate it.
                 </div>
               )}
+
+              <div className="rounded-lg border border-stone-200 bg-stone-50/80 px-3 py-3 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Availability</p>
+                <dl className="mt-2 space-y-1.5 text-stone-700">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">First published</dt>
+                    <dd className="text-right font-medium">
+                      {formatFirstPublishedDateTime(selectedCard) ?? 'Not published yet'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">Default expiry</dt>
+                    <dd className="text-right font-medium">
+                      {formatCardExpiryDateTime(selectedCard) ??
+                        (selectedCard.first_published_at
+                          ? formatEffectiveExpiryDateTime(selectedCard)
+                          : '6 months after first publish')}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">Expiry override</dt>
+                    <dd className="text-right font-medium">
+                      {formatStoredExpiryOverride(selectedCard) ?? '—'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">Effective expiry</dt>
+                    <dd className="text-right font-medium">
+                      {formatEffectiveExpiryDateTime(selectedCard) ?? '—'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="rounded-lg border border-stone-200 bg-stone-50/80 px-3 py-3 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Photo</p>
+                <dl className="mt-2 space-y-1.5 text-stone-700">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">Status</dt>
+                    <dd className="text-right font-medium">
+                      {hasCardPhoto(selectedCard) ? 'Uploaded' : 'None'}
+                    </dd>
+                  </div>
+                  {hasCardPhoto(selectedCard) && (
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-stone-500">Uploaded at</dt>
+                        <dd className="text-right font-medium">
+                          {formatPhotoTimestamp(selectedCard.photo_uploaded_at)}
+                        </dd>
+                      </div>
+                      {selectedCard.photo_original_name && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-stone-500">File name</dt>
+                          <dd className="max-w-[12rem] truncate text-right font-medium">
+                            {selectedCard.photo_original_name}
+                          </dd>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </dl>
+                {hasCardPhoto(selectedCard) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 w-full text-stone-600"
+                    disabled={removingPhotoId === selectedCard.id}
+                    onClick={() => void handleAdminRemovePhoto(selectedCard)}
+                  >
+                    {removingPhotoId === selectedCard.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Remove photo from storage
+                  </Button>
+                )}
+              </div>
 
               <div className="space-y-3">
                 <div>

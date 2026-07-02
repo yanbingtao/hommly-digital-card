@@ -29,6 +29,8 @@ import {
   senderLinksToFormInputs,
   type SenderLinkFormInputs,
 } from '@/lib/sender-links';
+import { CardPhotoUpload } from '@/components/card/CardPhotoUpload';
+import { hasCardPhoto } from '@/lib/card-photo';
 
 const THEMES: { id: Theme; label: string; icon: React.ReactNode; description: string }[] = [
   {
@@ -62,6 +64,7 @@ export default function EditCardPage() {
   const [form, setForm] = useState({
     message: '',
     theme: 'thank_you' as Theme,
+    add_photo: false,
     show_sender_links: false,
     sender_links: { ...EMPTY_SENDER_LINK_FORM } as SenderLinkFormInputs,
     view_pin_enabled: false,
@@ -91,6 +94,7 @@ export default function EditCardPage() {
       setForm({
         message: data.message ?? '',
         theme: (data.theme as Theme) || 'thank_you',
+        add_photo: hasCardPhoto(loaded),
         show_sender_links: Boolean(data.show_sender_links),
         sender_links: senderLinksToFormInputs(storedLinks),
         view_pin_enabled: Boolean(data.view_pin_enabled),
@@ -110,6 +114,11 @@ export default function EditCardPage() {
   }, [loadCard]);
 
   const isPublished = card?.status === 'published';
+  const cardExpired = Boolean(card && isCardExpired(card));
+
+  const handleCardPhotoUpdated = (updates: Partial<CardWithOrder>) => {
+    setCard((current) => (current ? { ...current, ...updates } : current));
+  };
 
   const handlePublish = async () => {
     if (card && isCardExpired(card)) {
@@ -177,6 +186,7 @@ export default function EditCardPage() {
       setForm({
         message: data.message ?? '',
         theme: (data.theme as Theme) || 'thank_you',
+        add_photo: hasCardPhoto(data as CardWithOrder),
         show_sender_links: Boolean(data.show_sender_links),
         sender_links: senderLinksToFormInputs(storedLinks),
         view_pin_enabled: Boolean(data.view_pin_enabled),
@@ -336,6 +346,15 @@ export default function EditCardPage() {
               <p className="text-xs font-medium uppercase tracking-wide text-stone-400">Optional</p>
               <p className="text-sm text-stone-600">Add extras only if you want them.</p>
             </div>
+
+            <CardPhotoUpload
+              editToken={editToken}
+              card={card}
+              enabled={form.add_photo}
+              onEnabledChange={(checked) => setForm({ ...form, add_photo: checked })}
+              disabled={cardExpired}
+              onCardUpdated={handleCardPhotoUpdated}
+            />
 
             <div className="overflow-hidden rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 via-sky-50/40 to-white shadow-sm">
               <div className="flex items-center justify-between gap-3 px-4 py-3.5">

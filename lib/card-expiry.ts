@@ -20,9 +20,7 @@ export function hasExpiryOverride(card: CardExpiryFields): boolean {
   return Boolean(card.expires_at_override);
 }
 
-export function getCardExpiresAt(card: CardExpiryFields): Date | null {
-  if (card.status !== 'published') return null;
-
+export function getEffectiveExpiry(card: CardExpiryFields): Date | null {
   if (card.expires_at_override) {
     const override = new Date(card.expires_at_override);
     if (!Number.isNaN(override.getTime())) return override;
@@ -31,6 +29,11 @@ export function getCardExpiresAt(card: CardExpiryFields): Date | null {
   const firstPublished = getFirstPublishedAt(card);
   if (!firstPublished) return null;
   return addMonths(firstPublished, CARD_AVAILABILITY_MONTHS);
+}
+
+export function getCardExpiresAt(card: CardExpiryFields): Date | null {
+  if (card.status !== 'published') return null;
+  return getEffectiveExpiry(card);
 }
 
 export function isCardExpired(card: CardExpiryFields): boolean {
@@ -68,6 +71,12 @@ export function formatFirstPublishedDateTime(card: CardExpiryFields): string | n
   const firstPublished = getFirstPublishedAt(card);
   if (!firstPublished) return null;
   return format(firstPublished, 'd MMMM yyyy, h:mm a');
+}
+
+export function formatEffectiveExpiryDateTime(card: CardExpiryFields): string | null {
+  const expiresAt = getEffectiveExpiry(card);
+  if (!expiresAt) return null;
+  return format(expiresAt, 'd MMMM yyyy, h:mm a');
 }
 
 export function formatCardTimeRemaining(card: CardExpiryFields): string | null {

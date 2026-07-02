@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { RecipientCardWithOrder, Theme } from '@/lib/types';
@@ -24,6 +24,7 @@ import {
   themeEmoji,
 } from '@/components/card/RecipientThemeBackground';
 import { Loader2 } from 'lucide-react';
+import { hasCardPhoto } from '@/lib/card-photo';
 
 export default function RecipientViewPage() {
   const params = useParams();
@@ -33,6 +34,7 @@ export default function RecipientViewPage() {
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [pinVerified, setPinVerified] = useState(false);
+  const [verifiedPin, setVerifiedPin] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
 
   const fetchCardContent = useCallback(async (): Promise<RecipientCardWithOrder | null> => {
@@ -115,10 +117,11 @@ export default function RecipientViewPage() {
     }
   }, [publicToken, fetchCardContent]);
 
-  const handlePinVerified = useCallback(async () => {
+  const handlePinVerified = useCallback(async (pin: string) => {
     const fullCard = await fetchCardContent();
     if (fullCard) {
       setCard(fullCard);
+      setVerifiedPin(pin);
       setPinVerified(true);
     }
   }, [fetchCardContent]);
@@ -158,7 +161,7 @@ export default function RecipientViewPage() {
       <ViewPinScreen
         theme={card.theme as Theme}
         publicToken={publicToken}
-        onVerified={() => void handlePinVerified()}
+        onVerified={(pin) => void handlePinVerified(pin)}
       />
     );
   }
@@ -172,7 +175,14 @@ export default function RecipientViewPage() {
     );
   }
 
-  return <CardReveal card={card} pinVerified={pinVerified} />;
+  return (
+    <CardReveal
+      card={card}
+      pinVerified={pinVerified}
+      publicToken={publicToken}
+      viewPin={card.view_pin_enabled ? verifiedPin : null}
+    />
+  );
 }
 
 function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) {
@@ -217,14 +227,62 @@ function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) 
 function CardReveal({
   card,
   pinVerified = true,
+  publicToken,
+  viewPin = null,
 }: {
   card: RecipientCardWithOrder;
   pinVerified?: boolean;
+  publicToken: string;
+  viewPin?: string | null;
 }) {
   const theme = card.theme as Theme;
   const visibleSenderLinks = shouldShowSenderLinks(card, { pinVerified })
     ? getVisibleSenderLinks(card)
     : [];
+
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const pinRef = useRef(pinVerified);
+
+  useEffect(() => {
+    pinRef.current = pinVerified;
+  }, [pinVerified]);
+
+  useEffect(() => {
+    if (!pinVerified || !hasCardPhoto(card)) {
+      setPhotoUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPhotoLoading(true);
+
+    const loadPhoto = async () => {
+      try {
+        const response = await fetch('/api/cards/view-photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            public_token: publicToken,
+            ...(card.view_pin_enabled && viewPin ? { pin: viewPin } : {}),
+          }),
+        });
+        const data = (await response.json()) as { signedUrl?: string | null };
+        if (!cancelled && pinRef.current) {
+          setPhotoUrl(data.signedUrl ?? null);
+        }
+      } catch {
+        if (!cancelled) setPhotoUrl(null);
+      } finally {
+        if (!cancelled) setPhotoLoading(false);
+      }
+    };
+
+    void loadPhoto();
+    return () => {
+      cancelled = true;
+    };
+  }, [card.photo_uploaded_at, card.view_pin_enabled, pinVerified, publicToken, viewPin]);
 
   const containerBg =
     theme === 'birthday'
@@ -270,6 +328,28 @@ function CardReveal({
                   : 'A heartfelt message'}
               </h2>
             </motion.div>
+
+            {(photoLoading || photoUrl) && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55, duration: 0.7 }}
+                className="mt-5 overflow-hidden rounded-xl bg-stone-100/80 ring-1 ring-stone-200/60"
+              >
+                {photoLoading ? (
+                  <div className="flex h-40 items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
+                  </div>
+                ) : photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoUrl}
+                    alt="A photo from the sender"
+                    className="max-h-72 w-full object-cover"
+                  />
+                ) : null}
+              </motion.div>
+            )}
 
             <motion.div
               initial={{ opacity: 0, y: 12 }}
