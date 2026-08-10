@@ -3,16 +3,12 @@
 import { getSupabase, getConnectionErrorMessage } from './supabase';
 import { assertAdminAuthenticated } from './admin-auth';
 import { DigitalCard, CardWithOrder } from './types';
-import crypto from 'crypto';
 import { resolveViewPinFields, verifyViewPin } from './view-pin-crypto';
 import { isValidViewPin } from './view-pin';
 import { getReactivationExpiryDate } from './card-expiry';
 import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
 import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
-
-function generateToken(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
+import { generateEditToken, generatePublicToken } from './card-tokens';
 
 function formatOrderTimestamp(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -49,18 +45,35 @@ export async function createCard(data: {
       return { card: null, error: orderError?.message || 'Failed to create order' };
     }
 
-    const publicToken = generateToken();
-    const editToken = generateToken();
+    const maxAttempts = 5;
+    let card = null;
+    let cardError = null;
 
-    const { data: card, error: cardError } = await supabase
-      .from('digital_cards')
-      .insert({
-        order_id: order.id,
-        public_token: publicToken,
-        edit_token: editToken,
-      })
-      .select()
-      .single();
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const publicToken = generatePublicToken();
+      const editToken = generateEditToken(order.order_number);
+
+      const result = await supabase
+        .from('digital_cards')
+        .insert({
+          order_id: order.id,
+          public_token: publicToken,
+          edit_token: editToken,
+        })
+        .select()
+        .single();
+
+      card = result.data;
+      cardError = result.error;
+
+      if (!cardError) {
+        break;
+      }
+
+      if (cardError.code !== '23505') {
+        break;
+      }
+    }
 
     if (cardError || !card) {
       return { card: null, error: cardError?.message || 'Failed to create digital card' };
