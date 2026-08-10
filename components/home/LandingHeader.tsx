@@ -1,17 +1,12 @@
 import Link from 'next/link';
-import { Gift } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 import { SHOP_URL } from './constants';
 
 export function LandingHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-stone-200/60 bg-white/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-orange-400 shadow-sm shadow-rose-200/50">
-            <Gift className="h-4 w-4 text-white" aria-hidden />
-          </span>
-          <span className="text-lg font-semibold tracking-tight text-stone-900">Hommly</span>
-        </Link>
+        <BrandLogo />
 
         <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main navigation">
           <a

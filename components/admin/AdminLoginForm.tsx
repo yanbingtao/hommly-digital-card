@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loginAdmin } from '@/app/actions/admin-auth';
@@ -8,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Gift, Loader2, Lock } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
+import { Loader2, Lock } from 'lucide-react';
 
 export function AdminLoginForm() {
   const searchParams = useSearchParams();
@@ -36,13 +36,8 @@ export function AdminLoginForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#fdf8f3] px-4">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-stone-700">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-100 to-amber-100">
-              <Gift className="h-5 w-5 text-rose-500" aria-hidden />
-            </span>
-            <span className="text-lg font-semibold">Hommly Admin</span>
-          </Link>
+        <div className="mb-8 flex justify-center">
+          <BrandLogo href="/" text="Hommly Admin" className="text-stone-700" />
         </div>
 
         <Card className="border-stone-200 shadow-sm">

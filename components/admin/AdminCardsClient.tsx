@@ -34,7 +34,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Gift, Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, type LucideIcon } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
+import { Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, Gift, type LucideIcon } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
 import { cn } from '@/lib/utils';
@@ -461,12 +462,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     <div className="min-h-screen bg-gradient-to-b from-stone-100/80 to-stone-50">
       <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 ring-1 ring-rose-100">
-              <Gift className="h-5 w-5 text-rose-500" />
-            </div>
-            <h1 className="text-lg font-semibold tracking-tight text-stone-800">Hommly Admin</h1>
-          </div>
+          <BrandLogo href={null} text="Hommly Admin" />
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
