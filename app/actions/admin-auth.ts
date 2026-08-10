@@ -5,23 +5,30 @@ import {
   ADMIN_SESSION_COOKIE,
   getAdminCookieOptions,
   getAdminSessionToken,
+  verifyAdminCredentials,
 } from '@/lib/admin-auth';
 
 export async function loginAdmin(
+  username: string,
   password: string,
   redirectTo = '/admin/cards'
 ): Promise<{ success: boolean; redirectTo?: string; error?: string }> {
-  const configuredPassword = process.env.ADMIN_PASSWORD?.trim();
+  const trimmedUsername = username.trim();
+  const trimmedPassword = password;
 
-  if (!configuredPassword) {
+  if (!process.env.ADMIN_USERNAME?.trim() || !process.env.ADMIN_PASSWORD?.trim()) {
     return {
       success: false,
-      error: 'Admin password is not configured. Set ADMIN_PASSWORD in .env.local.',
+      error: 'Admin credentials are not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD in .env.local.',
     };
   }
 
-  if (password !== configuredPassword) {
-    return { success: false, error: 'Incorrect password. Please try again.' };
+  if (!trimmedUsername || !trimmedPassword) {
+    return { success: false, error: 'Please enter both username and password.' };
+  }
+
+  if (!verifyAdminCredentials(trimmedUsername, trimmedPassword)) {
+    return { success: false, error: 'Incorrect username or password. Please try again.' };
   }
 
   cookies().set(ADMIN_SESSION_COOKIE, getAdminSessionToken(), getAdminCookieOptions());

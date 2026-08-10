@@ -64,12 +64,13 @@ Create `.env.local` in the project root:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+ADMIN_USERNAME=your-admin-username
 ADMIN_PASSWORD=choose-a-strong-admin-password
 ```
 
 Do not commit `.env.local` — it is already listed in `.gitignore`.
 
-`ADMIN_PASSWORD` protects `/admin/cards`. Visiting the admin page will prompt for this password first.
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` protect `/admin/cards`. Visiting the admin page will prompt for both.
 
 ### 4. Run the dev server
 
@@ -99,4 +100,4 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Deployment
 
-The project includes a `netlify.toml` for [Netlify](https://netlify.com). Set the Supabase environment variables and `ADMIN_PASSWORD` in your hosting dashboard before deploying.
+The project includes a `netlify.toml` for [Netlify](https://netlify.com). Set the Supabase environment variables, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` in your hosting dashboard before deploying.

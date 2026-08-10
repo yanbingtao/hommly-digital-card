@@ -13,6 +13,7 @@ import { Loader2, Lock } from 'lucide-react';
 export function AdminLoginForm() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get('next') || '/admin/cards';
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -22,7 +23,7 @@ export function AdminLoginForm() {
     setError(null);
 
     startTransition(async () => {
-      const result = await loginAdmin(password, nextPath);
+      const result = await loginAdmin(username, password, nextPath);
       if (!result.success) {
         setError(result.error || 'Login failed');
         return;
@@ -46,10 +47,22 @@ export function AdminLoginForm() {
               <Lock className="h-5 w-5 text-rose-500" aria-hidden />
             </div>
             <CardTitle className="text-xl text-stone-800">Admin Management</CardTitle>
-            <p className="text-sm text-stone-500">Enter the admin password to continue.</p>
+            <p className="text-sm text-stone-500">Sign in with your admin username and password.</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="Enter admin username"
+                  autoComplete="username"
+                  required
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
