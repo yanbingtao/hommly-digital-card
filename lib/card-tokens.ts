@@ -53,3 +53,15 @@ export function generateEditToken(orderNumber: string): string {
 export function isLegacyHexToken(token: string): boolean {
   return /^[a-f0-9]{64}$/i.test(token);
 }
+
+/** Matches tokens from {@link generatePublicToken}. */
+export function isShortPublicToken(token: string): boolean {
+  return new RegExp(`^[0-9A-Za-z]{${PUBLIC_TOKEN_LENGTH}}$`).test(token);
+}
+
+/** Accepts current 12-char slugs and legacy 64-char hex tokens. */
+export function isValidPublicToken(token: string): boolean {
+  const trimmed = token?.trim();
+  if (!trimmed) return false;
+  return isShortPublicToken(trimmed) || isLegacyHexToken(trimmed);
+}
