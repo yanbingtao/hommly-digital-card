@@ -9,6 +9,8 @@ export interface Order {
 export interface DigitalCard {
   id: string;
   order_id: string;
+  platform?: string | null;
+  external_order_id?: string | null;
   public_token: string;
   edit_token: string;
   message: string | null;

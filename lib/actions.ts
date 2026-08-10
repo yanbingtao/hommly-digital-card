@@ -8,81 +8,20 @@ import { isValidViewPin } from './view-pin';
 import { getReactivationExpiryDate } from './card-expiry';
 import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
 import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
-import { generateEditToken, generatePublicToken } from './card-tokens';
-
-function formatOrderTimestamp(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return (
-    String(date.getFullYear()) +
-    pad(date.getMonth() + 1) +
-    pad(date.getDate()) +
-    pad(date.getHours()) +
-    pad(date.getMinutes()) +
-    pad(date.getSeconds())
-  );
-}
-
-function buildOrderNumber(input: string): string {
-  return `${input.trim()}-${formatOrderTimestamp(new Date())}`;
-}
+import { createCardCore } from './create-card-core';
 
 export async function createCard(data: {
   order_number: string;
 }): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
     await assertAdminAuthenticated();
-    const supabase = getSupabase();
-    const orderNumber = buildOrderNumber(data.order_number);
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        order_number: orderNumber,
-      })
-      .select()
-      .single();
-
-    if (orderError || !order) {
-      return { card: null, error: orderError?.message || 'Failed to create order' };
+    const result = await createCardCore(getSupabase(), {
+      orderNumberInput: data.order_number,
+    });
+    if (!result.ok) {
+      return { card: null, error: result.error };
     }
-
-    const maxAttempts = 5;
-    let card = null;
-    let cardError = null;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const publicToken = generatePublicToken();
-      const editToken = generateEditToken(order.order_number);
-
-      const result = await supabase
-        .from('digital_cards')
-        .insert({
-          order_id: order.id,
-          public_token: publicToken,
-          edit_token: editToken,
-        })
-        .select()
-        .single();
-
-      card = result.data;
-      cardError = result.error;
-
-      if (!cardError) {
-        break;
-      }
-
-      if (cardError.code !== '23505') {
-        break;
-      }
-    }
-
-    if (cardError || !card) {
-      return { card: null, error: cardError?.message || 'Failed to create digital card' };
-    }
-
-    return {
-      card: { ...card, order } as CardWithOrder,
-      error: null,
-    };
+    return { card: result.card, error: null };
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'Unauthorized') {
       return { card: null, error: 'Unauthorized. Please sign in again.' };
