@@ -377,9 +377,10 @@ describe('Phase 4A production guards', () => {
     expect(migration).not.toMatch(/CREATE POLICY[\s\S]*digital_card_recipients/);
   });
 
-  it('normal Admin Shared create UI unchanged', () => {
+  it('normal Admin create UI uses server actions not individual core directly', () => {
     const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
     expect(source).toMatch(/createCard\(/);
+    expect(source).toMatch(/createIndividualCard\(/);
     expect(source).not.toMatch(/IndividualRecipientManager/);
   });
 

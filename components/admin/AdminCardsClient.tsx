@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { createCard, deleteCard, getCards, reactivateCard, setCardExpiryOverride, runExpiredPhotoCleanup, adminRemoveCardPhoto } from '@/lib/actions';
+import { createCard, createIndividualCard, deleteCard, getCards, getAdminIndividualRecipients, reactivateCard, setCardExpiryOverride, runExpiredPhotoCleanup, adminRemoveCardPhoto } from '@/lib/actions';
+import { getAdminCardTypeLabel, isIndividualCard } from '@/lib/admin-card-helpers';
+import type { AdminIndividualRecipientItem } from '@/lib/admin-card-types';
 import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDateTime,
@@ -33,6 +35,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, Gift, type LucideIcon } from 'lucide-react';
@@ -42,8 +45,11 @@ import { cn } from '@/lib/utils';
 
 interface AdminCardsClientProps {
   initialCards: CardWithOrder[];
+  initialRecipientCounts: Record<string, number>;
   initialError: string | null;
 }
+
+type AdminCardType = 'shared' | 'individual';
 
 function getLocalDateKey(isoString: string): string {
   const date = new Date(isoString);
@@ -94,6 +100,40 @@ function formatPhotoTimestamp(iso: string | null | undefined): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function IndividualRecipientList({
+  recipients,
+  copiedField,
+  onCopy,
+}: {
+  recipients: AdminIndividualRecipientItem[];
+  copiedField: string | null;
+  onCopy: (text: string, field: string) => void;
+}) {
+  return (
+    <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-3">
+      {recipients.map((recipient) => (
+        <div key={recipient.recipient_number} className="rounded-lg bg-stone-50/80 px-3 py-2.5 ring-1 ring-stone-100">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-stone-800">{recipient.label}</p>
+              <p className="mt-0.5 text-[11px] text-stone-500">{recipient.statusLabel}</p>
+            </div>
+          </div>
+          <div className="mt-2">
+            <CardLinkRow
+              label="View URL"
+              url={recipient.viewUrl}
+              copyKey={`recipient-${recipient.recipient_number}`}
+              copied={copiedField === `recipient-${recipient.recipient_number}`}
+              onCopy={onCopy}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function CardLinkRow({
@@ -173,8 +213,13 @@ function CardQuickAction({
   );
 }
 
-export function AdminCardsClient({ initialCards, initialError }: AdminCardsClientProps) {
+export function AdminCardsClient({
+  initialCards,
+  initialRecipientCounts,
+  initialError,
+}: AdminCardsClientProps) {
   const [cards, setCards] = useState<CardWithOrder[]>(initialCards);
+  const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>(initialRecipientCounts);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -192,9 +237,13 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   const [removingPhotoId, setRemovingPhotoId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [individualRecipients, setIndividualRecipients] = useState<AdminIndividualRecipientItem[] | null>(null);
+  const [loadingIndividualRecipients, setLoadingIndividualRecipients] = useState(false);
 
   const [form, setForm] = useState({
     order_number: '',
+    card_type: 'shared' as AdminCardType,
+    quantity: '',
   });
 
   useEffect(() => {
@@ -221,6 +270,16 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     const loadQRCodes = async () => {
       const siteOrigin = origin || window.location.origin;
       const editUrl = `${siteOrigin}/e/${selectedCard.edit_token}`;
+
+      if (isIndividualCard(selectedCard)) {
+        const editQr = await generateQRCodeDataURL(editUrl);
+        if (!cancelled) {
+          setEditQrCode(editQr);
+          setRecipientQrCode('');
+        }
+        return;
+      }
+
       const recipientUrl = `${siteOrigin}/g/${selectedCard.public_token}`;
       const [editQr, recipientQr] = await Promise.all([
         generateQRCodeDataURL(editUrl),
@@ -240,14 +299,41 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
     };
   }, [selectedCard, origin]);
 
+  useEffect(() => {
+    if (!selectedCard || !isIndividualCard(selectedCard)) {
+      setIndividualRecipients(null);
+      setLoadingIndividualRecipients(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingIndividualRecipients(true);
+    setIndividualRecipients(null);
+
+    void getAdminIndividualRecipients(selectedCard.id).then((result) => {
+      if (cancelled) return;
+      setLoadingIndividualRecipients(false);
+      if (result.error || !result.recipients) {
+        toast.error(result.error ?? 'Unable to load gift recipients.');
+        return;
+      }
+      setIndividualRecipients(result.recipients);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCard]);
+
   const loadCards = useCallback(async () => {
     setLoading(true);
     try {
-      const { cards: data, error } = await getCards();
+      const { cards: data, recipientCounts: counts, error } = await getCards();
       if (error) {
         toast.error('Failed to load cards: ' + error);
       } else {
         setCards(data || []);
+        setRecipientCounts(counts || {});
       }
     } finally {
       setLoading(false);
@@ -256,23 +342,55 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.order_number) {
+    if (!form.order_number.trim()) {
       toast.error('Please enter an order number');
       return;
     }
+
     setCreating(true);
-    const { card, error } = await createCard({ order_number: form.order_number });
-    if (error || !card) {
-      toast.error('Failed to create card: ' + (error || 'Unknown error'));
+
+    if (form.card_type === 'shared') {
+      const result = await createCard({ order_number: form.order_number });
+      if (!result.ok) {
+        toast.error('Failed to create card: ' + result.error);
+        setCreating(false);
+        return;
+      }
+      setForm({ order_number: '', card_type: 'shared', quantity: '' });
+      setShowCreateForm(false);
+      await loadCards();
+      setSelectedCard(result.card);
+      setCreating(false);
+      toast.success('Card created successfully!');
+      return;
+    }
+
+    const quantity = Number(form.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      toast.error('Please enter a valid gift quantity.');
       setCreating(false);
       return;
     }
-    setForm({ order_number: '' });
+
+    const result = await createIndividualCard({
+      order_number: form.order_number,
+      recipient_count: quantity,
+    });
+
+    if (!result.ok) {
+      toast.error(result.error);
+      setCreating(false);
+      return;
+    }
+
+    setForm({ order_number: '', card_type: 'shared', quantity: '' });
     setShowCreateForm(false);
+    setRecipientCounts((current) => ({ ...current, [result.card.id]: result.quantity }));
     await loadCards();
-    setSelectedCard(card);
+    setSelectedCard(result.card);
+    setIndividualRecipients(result.recipients);
     setCreating(false);
-    toast.success('Card created successfully!');
+    toast.success(`Individual card created with ${result.quantity} gifts.`);
   };
 
   const handleCopy = async (text: string, field: string) => {
@@ -425,17 +543,21 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
   };
 
   const handleDownloadQrCodes = () => {
-    if (!selectedCard || !editQrCode || !recipientQrCode) {
+    if (!selectedCard || !editQrCode) {
       toast.error('QR codes are still loading');
       return;
     }
 
     const orderNumber = selectedCard.order.order_number;
     downloadDataUrl(editQrCode, orderQrFilename(orderNumber, 'edit_page_qr'));
-    setTimeout(() => {
-      downloadDataUrl(recipientQrCode, orderQrFilename(orderNumber, 'view_page_qr'));
-    }, 150);
-    toast.success('QR codes downloaded');
+
+    if (!isIndividualCard(selectedCard) && recipientQrCode) {
+      setTimeout(() => {
+        downloadDataUrl(recipientQrCode, orderQrFilename(orderNumber, 'view_page_qr'));
+      }, 150);
+    }
+
+    toast.success(isIndividualCard(selectedCard) ? 'Edit QR downloaded' : 'QR codes downloaded');
   };
 
   const getStatusBadge = (card: CardWithOrder) => {
@@ -500,17 +622,68 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   <Input
                     id="order_number"
                     value={form.order_number}
-                    onChange={(e) => setForm({ order_number: e.target.value })}
+                    onChange={(e) => setForm((current) => ({ ...current, order_number: e.target.value }))}
                     placeholder="e.g. HM-2024-001"
                     required
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Card Type</Label>
+                  <RadioGroup
+                    value={form.card_type}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        card_type: value as AdminCardType,
+                        quantity: value === 'shared' ? '' : current.quantity,
+                      }))
+                    }
+                    className="grid gap-2 sm:grid-cols-2"
+                  >
+                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 px-3 py-2.5 hover:bg-stone-50">
+                      <RadioGroupItem value="shared" id="card_type_shared" />
+                      <span className="text-sm text-stone-700">Shared</span>
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 px-3 py-2.5 hover:bg-stone-50">
+                      <RadioGroupItem value="individual" id="card_type_individual" />
+                      <span className="text-sm text-stone-700">Individual</span>
+                    </label>
+                  </RadioGroup>
+                </div>
+
+                {form.card_type === 'individual' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="quantity">Quantity</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={form.quantity}
+                      onChange={(e) => setForm((current) => ({ ...current, quantity: e.target.value }))}
+                      placeholder="e.g. 3"
+                      required
+                    />
+                    <p className="text-xs text-stone-500">
+                      This creates one unique recipient QR for each gift.
+                    </p>
+                  </div>
+                ) : null}
+
                 <div className="flex gap-2">
                   <Button type="submit" disabled={creating} className="bg-rose-500 hover:bg-rose-600">
                     {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Create Card
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setForm({ order_number: '', card_type: 'shared', quantity: '' });
+                    }}
+                  >
                     Cancel
                   </Button>
                 </div>
@@ -560,6 +733,8 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 const editUrl = `${origin}/e/${card.edit_token}`;
                 const recipientUrl = `${origin}/g/${card.public_token}`;
                 const expired = isCardExpired(card);
+                const individual = isIndividualCard(card);
+                const typeLabel = getAdminCardTypeLabel(card, recipientCounts[card.id]);
                 return (
                   <Card
                     key={card.id}
@@ -575,11 +750,8 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                             {card.order.order_number}
                           </p>
                           <p className="mt-0.5 text-[11px] text-stone-400">
-                            {expired
-                              ? 'Links disabled'
-                              : card.status === 'published'
-                              ? 'Live card'
-                              : 'Awaiting publish'}
+                            {typeLabel}
+                            {expired ? ' · Links disabled' : ''}
                           </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -605,13 +777,19 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                           copied={copiedField === `edit-${card.id}`}
                           onCopy={handleCopy}
                         />
-                        <CardLinkRow
-                          label="Recipient view"
-                          url={recipientUrl}
-                          copyKey={`recipient-${card.id}`}
-                          copied={copiedField === `recipient-${card.id}`}
-                          onCopy={handleCopy}
-                        />
+                        {individual ? (
+                          <p className="px-1 text-[11px] text-stone-500">
+                            {recipientCounts[card.id] ?? 0} recipient view links in card details
+                          </p>
+                        ) : (
+                          <CardLinkRow
+                            label="Recipient view"
+                            url={recipientUrl}
+                            copyKey={`recipient-${card.id}`}
+                            copied={copiedField === `recipient-${card.id}`}
+                            onCopy={handleCopy}
+                          />
+                        )}
                       </div>
 
                       <div className="mt-3 grid grid-cols-4 gap-0.5 rounded-xl bg-stone-50 p-1 ring-1 ring-stone-100">
@@ -692,6 +870,26 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
               )}
 
               <div className="rounded-lg border border-stone-200 bg-stone-50/80 px-3 py-3 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Card</p>
+                <dl className="mt-2 space-y-1.5 text-stone-700">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">Type</dt>
+                    <dd className="text-right font-medium">
+                      {isIndividualCard(selectedCard) ? 'Individual' : 'Shared'}
+                    </dd>
+                  </div>
+                  {isIndividualCard(selectedCard) ? (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-stone-500">Quantity</dt>
+                      <dd className="text-right font-medium">
+                        {recipientCounts[selectedCard.id] ?? individualRecipients?.length ?? 0}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </div>
+
+              <div className="rounded-lg border border-stone-200 bg-stone-50/80 px-3 py-3 text-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Availability</p>
                 <dl className="mt-2 space-y-1.5 text-stone-700">
                   <div className="flex justify-between gap-3">
@@ -724,6 +922,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 </dl>
               </div>
 
+              {!isIndividualCard(selectedCard) ? (
               <div className="rounded-lg border border-stone-200 bg-stone-50/80 px-3 py-3 text-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Photo</p>
                 <dl className="mt-2 space-y-1.5 text-stone-700">
@@ -770,10 +969,11 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   </Button>
                 )}
               </div>
+              ) : null}
 
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-stone-500">Buyer Edit Link</Label>
+                  <Label className="text-xs text-stone-500">Edit URL</Label>
                   <div className="mt-1 flex items-center gap-2">
                     <Input
                       readOnly
@@ -796,6 +996,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   </div>
                 </div>
 
+                {!isIndividualCard(selectedCard) ? (
                 <div>
                   <Label className="text-xs text-stone-500">Recipient QR Link</Label>
                   <div className="mt-1 flex items-center gap-2">
@@ -819,8 +1020,45 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                     </Button>
                   </div>
                 </div>
+                ) : null}
               </div>
 
+              {isIndividualCard(selectedCard) ? (
+                <div className="space-y-2">
+                  <Label className="text-xs text-stone-500">Recipient View URLs</Label>
+                  {loadingIndividualRecipients ? (
+                    <div className="flex items-center justify-center rounded-lg border border-dashed border-stone-200 py-8">
+                      <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
+                    </div>
+                  ) : individualRecipients && individualRecipients.length > 0 ? (
+                    <IndividualRecipientList
+                      recipients={individualRecipients}
+                      copiedField={copiedField}
+                      onCopy={handleCopy}
+                    />
+                  ) : (
+                    <p className="text-sm text-stone-500">No recipients found.</p>
+                  )}
+                </div>
+              ) : null}
+
+              {isIndividualCard(selectedCard) ? (
+                <div className="flex flex-col items-center">
+                  {editQrCode ? (
+                    <img
+                      src={editQrCode}
+                      alt="Buyer edit QR code"
+                      className="h-36 w-36 rounded-lg border border-stone-200"
+                    />
+                  ) : (
+                    <div className="flex h-36 w-36 items-center justify-center rounded-lg border border-stone-200 bg-stone-50">
+                      <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+                    </div>
+                  )}
+                  <p className="mt-2 text-center text-xs text-stone-500">Scan for buyer edit page</p>
+                </div>
+              ) : (
+              <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col items-center">
                   {editQrCode ? (
@@ -861,6 +1099,20 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                 <Download className="mr-2 h-4 w-4" />
                 Download QR Codes
               </Button>
+              </>
+              )}
+
+              {isIndividualCard(selectedCard) ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={!editQrCode}
+                  onClick={handleDownloadQrCodes}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Edit QR
+                </Button>
+              ) : null}
 
               <div className="flex gap-2">
                 <Button
@@ -873,6 +1125,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   <Eye className="mr-2 h-4 w-4" />
                   Open Edit Page
                 </Button>
+                {!isIndividualCard(selectedCard) ? (
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -884,6 +1137,7 @@ export function AdminCardsClient({ initialCards, initialError }: AdminCardsClien
                   <Eye className="mr-2 h-4 w-4" />
                   Preview Recipient
                 </Button>
+                ) : null}
               </div>
 
               {isCardExpired(selectedCard) && (

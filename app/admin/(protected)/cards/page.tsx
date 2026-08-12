@@ -4,7 +4,13 @@ import { AdminCardsClient } from '@/components/admin/AdminCardsClient';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminCardsPage() {
-  const { cards, error } = await getCards();
+  const { cards, recipientCounts, error } = await getCards();
 
-  return <AdminCardsClient initialCards={cards ?? []} initialError={error} />;
+  return (
+    <AdminCardsClient
+      initialCards={cards ?? []}
+      initialRecipientCounts={recipientCounts ?? {}}
+      initialError={error}
+    />
+  );
 }

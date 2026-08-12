@@ -16,28 +16,160 @@ import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
 import { deleteIndividualCardMediaStorage } from './digital-card-media';
 import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
 import { createCardCore } from './create-card-core';
+import { createIndividualCardCore } from './create-individual-card-core';
+import {
+  buildAdminIndividualRecipientItems,
+  validateAdminIndividualRecipientQuantity,
+} from './admin-card-helpers';
+import type {
+  AdminCreateIndividualCardResult,
+  AdminCreateSharedCardResult,
+  AdminIndividualRecipientItem,
+} from './admin-card-types';
+import { getRecipientsForCard } from './card-recipients';
+import { buildBuyerEditUrl } from './individual-card-urls';
+import { getCanonicalSiteOrigin } from './internal-card-response';
 
 export async function createCard(data: {
   order_number: string;
-}): Promise<{ card: CardWithOrder | null; error: string | null }> {
+}): Promise<AdminCreateSharedCardResult> {
   try {
     await assertAdminAuthenticated();
     const result = await createCardCore(getSupabase(), {
       orderNumberInput: data.order_number,
     });
     if (!result.ok) {
-      return { card: null, error: result.error };
+      return { ok: false, error: result.error };
     }
-    return { card: result.card, error: null };
+    return { ok: true, mode: 'shared', card: result.card };
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'Unauthorized') {
-      return { card: null, error: 'Unauthorized. Please sign in again.' };
+      return { ok: false, error: 'Unauthorized. Please sign in again.' };
     }
-    return { card: null, error: getConnectionErrorMessage(err) };
+    return { ok: false, error: getConnectionErrorMessage(err) };
   }
 }
 
-export async function getCards(): Promise<{ cards: CardWithOrder[] | null; error: string | null }> {
+export async function createIndividualCard(data: {
+  order_number: string;
+  recipient_count: number;
+}): Promise<AdminCreateIndividualCardResult> {
+  try {
+    await assertAdminAuthenticated();
+
+    const orderNumber = data.order_number.trim();
+    if (!orderNumber) {
+      return { ok: false, error: 'Please enter an order number.' };
+    }
+
+    const quantityResult = validateAdminIndividualRecipientQuantity(data.recipient_count);
+    if (!quantityResult.ok) {
+      return { ok: false, error: quantityResult.error };
+    }
+
+    const supabase = getSupabaseAdmin();
+    const result = await createIndividualCardCore(supabase, {
+      orderNumberInput: orderNumber,
+      recipientCount: quantityResult.count,
+      platform: null,
+      externalOrderId: null,
+    });
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: "We couldn't create the Individual Card. Please try again.",
+      };
+    }
+
+    const siteOrigin = getCanonicalSiteOrigin();
+    const recipients = buildAdminIndividualRecipientItems(result.recipients, siteOrigin);
+
+    return {
+      ok: true,
+      mode: 'individual',
+      card: result.card,
+      recipients,
+      editUrl: buildBuyerEditUrl(result.card, siteOrigin),
+      quantity: quantityResult.count,
+    };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { ok: false, error: 'Unauthorized. Please sign in again.' };
+    }
+    return { ok: false, error: "We couldn't create the Individual Card. Please try again." };
+  }
+}
+
+async function fetchIndividualRecipientCounts(
+  supabase: ReturnType<typeof getSupabase>,
+  cardIds: string[]
+): Promise<Record<string, number>> {
+  if (cardIds.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from('digital_card_recipients')
+    .select('digital_card_id')
+    .in('digital_card_id', cardIds);
+
+  if (error || !data) {
+    return {};
+  }
+
+  const counts: Record<string, number> = {};
+  for (const row of data as Array<{ digital_card_id: string }>) {
+    counts[row.digital_card_id] = (counts[row.digital_card_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export async function getAdminIndividualRecipients(cardId: string): Promise<{
+  recipients: AdminIndividualRecipientItem[] | null;
+  error: string | null;
+}> {
+  try {
+    await assertAdminAuthenticated();
+    const supabase = getSupabase();
+
+    const { data: card, error: cardError } = await supabase
+      .from('digital_cards')
+      .select('id, card_mode')
+      .eq('id', cardId)
+      .maybeSingle();
+
+    if (cardError || !card) {
+      return { recipients: null, error: 'Card not found.' };
+    }
+
+    if (card.card_mode !== 'individual') {
+      return { recipients: null, error: 'This card is not an Individual card.' };
+    }
+
+    const { recipients, error: listError } = await getRecipientsForCard(getSupabaseAdmin(), cardId);
+    if (listError) {
+      return { recipients: null, error: 'Unable to load recipients.' };
+    }
+
+    const siteOrigin = getCanonicalSiteOrigin();
+    return {
+      recipients: buildAdminIndividualRecipientItems(recipients, siteOrigin),
+      error: null,
+    };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'Unauthorized') {
+      return { recipients: null, error: 'Unauthorized. Please sign in again.' };
+    }
+    return { recipients: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
+export async function getCards(): Promise<{
+  cards: CardWithOrder[] | null;
+  recipientCounts: Record<string, number> | null;
+  error: string | null;
+}> {
   try {
     await assertAdminAuthenticated();
     const supabase = getSupabase();
@@ -47,15 +179,19 @@ export async function getCards(): Promise<{ cards: CardWithOrder[] | null; error
       .order('created_at', { ascending: false });
 
     if (error) {
-      return { cards: null, error: error.message };
+      return { cards: null, recipientCounts: null, error: error.message };
     }
 
-    return { cards: data as CardWithOrder[] | null, error: null };
+    const cards = (data ?? []) as CardWithOrder[];
+    const individualIds = cards.filter((card) => card.card_mode === 'individual').map((card) => card.id);
+    const recipientCounts = await fetchIndividualRecipientCounts(supabase, individualIds);
+
+    return { cards, recipientCounts, error: null };
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'Unauthorized') {
-      return { cards: null, error: 'Unauthorized. Please sign in again.' };
+      return { cards: null, recipientCounts: null, error: 'Unauthorized. Please sign in again.' };
     }
-    return { cards: null, error: getConnectionErrorMessage(err) };
+    return { cards: null, recipientCounts: null, error: getConnectionErrorMessage(err) };
   }
 }
 

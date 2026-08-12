@@ -490,14 +490,14 @@ describe('adminPublishIndividualRecipientCore', () => {
 });
 
 describe('Phase 3.6 production guards', () => {
-  it('normal Admin Shared create UI unchanged', () => {
+  it('normal Admin create UI uses production actions not test tool', () => {
     const source = fs.readFileSync(
       path.join(ROOT, 'components/admin/AdminCardsClient.tsx'),
       'utf8'
     );
     expect(source).toMatch(/createCard\(/);
+    expect(source).toMatch(/createIndividualCard\(/);
     expect(source).not.toMatch(/adminCreateIndividualTestCard/);
-    expect(source).not.toMatch(/recipient_count/);
     expect(source).not.toMatch(/Individual Test/);
   });
 
