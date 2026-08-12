@@ -6,9 +6,9 @@ import {
   adminCreateIndividualTestCard,
   adminDeleteIndividualTestCard,
   adminPublishIndividualTestRecipient,
-  type IndividualTestCardBundle,
-  ADMIN_INDIVIDUAL_TEST_MAX_RECIPIENTS,
 } from '@/lib/admin-individual-test-actions';
+import { ADMIN_INDIVIDUAL_TEST_MAX_RECIPIENTS } from '@/lib/admin-individual-test-config';
+import type { IndividualTestCardBundle } from '@/lib/admin-individual-test-types';
 import { copyToClipboard } from '@/lib/copy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

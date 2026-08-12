@@ -2,6 +2,8 @@
 
 import { assertAdminAuthenticated } from './admin-auth';
 import { adminPublishIndividualRecipientCore } from './admin-individual-recipient-publish';
+import { ADMIN_INDIVIDUAL_TEST_MAX_RECIPIENTS } from './admin-individual-test-config';
+import type { IndividualTestCardBundle } from './admin-individual-test-types';
 import { createIndividualCardCore } from './create-individual-card-core';
 import { getRecipientsForCard, formatRecipientNumber } from './card-recipients';
 import { buildBuyerEditUrl, buildRecipientViewUrl } from './individual-card-urls';
@@ -9,24 +11,7 @@ import { getCanonicalSiteOrigin } from './internal-card-response';
 import { getSupabaseAdmin } from './supabase-admin';
 import { getConnectionErrorMessage } from './supabase';
 import { deleteCard } from './actions';
-import type { CardWithOrder, DigitalCardRecipient } from './types';
-
-export const ADMIN_INDIVIDUAL_TEST_MAX_RECIPIENTS = 20;
-
-export type IndividualTestCardBundle = {
-  card: CardWithOrder;
-  recipients: DigitalCardRecipient[];
-  editUrl: string;
-  compatibilityViewUrl: string;
-  recipientViews: Array<{
-    id: string;
-    recipient_number: number;
-    label: string;
-    viewUrl: string;
-    status: string;
-    message: string | null;
-  }>;
-};
+import type { DigitalCardRecipient } from './types';
 
 function buildRecipientViews(
   recipients: DigitalCardRecipient[],
