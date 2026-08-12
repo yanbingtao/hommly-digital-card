@@ -26,6 +26,14 @@ export function generatePublicToken(): string {
 }
 
 /**
+ * Opaque 12-char slug for individual recipient view URLs (/g/{viewToken} in a later phase).
+ * Same entropy and charset as {@link generatePublicToken}; semantically distinct for readability.
+ */
+export function generateRecipientViewToken(): string {
+  return generatePublicToken();
+}
+
+/**
  * Makes order numbers safe inside a single URL path segment.
  */
 export function sanitizeOrderNumberForUrl(orderNumber: string): string {

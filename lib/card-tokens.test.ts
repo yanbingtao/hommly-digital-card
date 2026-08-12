@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   generatePublicToken,
+  generateRecipientViewToken,
   isLegacyHexToken,
   isShortPublicToken,
   isValidPublicToken,
@@ -29,5 +30,12 @@ describe('isValidPublicToken', () => {
     const token = generatePublicToken();
     expect(token).toHaveLength(12);
     expect(isValidPublicToken(token)).toBe(true);
+  });
+
+  it('generateRecipientViewToken matches public token format', () => {
+    const token = generateRecipientViewToken();
+    expect(token).toHaveLength(12);
+    expect(isValidPublicToken(token)).toBe(true);
+    expect(isShortPublicToken(token)).toBe(true);
   });
 });

@@ -15,6 +15,7 @@ function cardFixture(overrides?: Partial<CardWithOrder>): CardWithOrder {
   return {
     id: 'card-1',
     order_id: 'ord-1',
+    card_mode: 'shared',
     platform: 'shopee',
     external_order_id: '260810ABC123XY',
     public_token: 'pubToken12ab',
