@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { getSupabaseAdmin } from './supabase-admin';
 import { getConnectionErrorMessage } from './supabase';
 import {
@@ -13,6 +14,20 @@ import {
 } from './publish-individual-recipients-core';
 import { getRecipientsForCard } from './card-recipients';
 import type { IndividualRecipientEditorLoadResult } from './individual-recipient-editor-types';
+
+export type PublishIndividualRecipientsActionResult =
+  | {
+      ok: true;
+      updatedRecipientIds: string[];
+      updatedCount: number;
+      error: null;
+    }
+  | {
+      ok: false;
+      updatedRecipientIds: null;
+      updatedCount: null;
+      error: string;
+    };
 
 export async function loadIndividualRecipientEditor(input: {
   edit_token: string;
@@ -44,7 +59,7 @@ export async function publishIndividualRecipients(input: {
     view_pin_enabled: boolean;
     view_pin: string;
   };
-}): Promise<{ success: boolean; error: string | null }> {
+}): Promise<PublishIndividualRecipientsActionResult> {
   try {
     const supabase = getSupabaseAdmin();
     const result = await publishIndividualRecipientsCore(supabase, {
@@ -53,11 +68,29 @@ export async function publishIndividualRecipients(input: {
       content: input.content,
     });
     if (!result.ok) {
-      return { success: false, error: result.error };
+      return {
+        ok: false,
+        updatedRecipientIds: null,
+        updatedCount: null,
+        error: result.error,
+      };
     }
-    return { success: true, error: null };
+
+    revalidatePath(`/e/${input.edit_token.trim()}`);
+
+    return {
+      ok: true,
+      updatedRecipientIds: result.updatedRecipientIds,
+      updatedCount: result.updatedCount,
+      error: null,
+    };
   } catch (err: unknown) {
-    return { success: false, error: getConnectionErrorMessage(err) };
+    return {
+      ok: false,
+      updatedRecipientIds: null,
+      updatedCount: null,
+      error: getConnectionErrorMessage(err),
+    };
   }
 }
 

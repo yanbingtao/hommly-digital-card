@@ -70,9 +70,10 @@ export function IndividualRecipientManager({
     const refreshed = await refreshIndividualRecipientManager({ edit_token: editToken });
     if (refreshed.error || !refreshed.recipients) {
       toast.error(refreshed.error ?? 'Published, but the gift list could not be refreshed.');
-    } else {
-      setRecipients(refreshed.recipients);
+      return;
     }
+
+    setRecipients(refreshed.recipients);
     setSelectedIds(clearRecipientSelection());
     setView('list');
   };

@@ -19,6 +19,8 @@ import type { CardWithOrder, DigitalCardRecipient } from './types';
 const RECIPIENT_SELECT =
   'id, digital_card_id, recipient_number, view_token, message, theme, animation, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at, created_at, updated_at';
 
+export const INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH = 'INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH';
+
 export type PublishIndividualRecipientsInput = {
   editToken: string;
   recipientIds: string[];
@@ -32,18 +34,42 @@ export type PublishIndividualRecipientsInput = {
   };
 };
 
-export type PublishIndividualRecipientsResult = {
-  ok: true;
-  updatedRecipientIds: string[];
-  parentFirstPublishedAt: string | null;
-} | {
-  ok: false;
-  error: string;
-};
+export type PublishIndividualRecipientsResult =
+  | {
+      ok: true;
+      updatedRecipientIds: string[];
+      updatedCount: number;
+      parentFirstPublishedAt: string | null;
+      parentLifecycleWarning: string | null;
+    }
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+    };
 
 export type LoadIndividualRecipientEditorResult =
   | { ok: true; data: IndividualRecipientEditorLoadResult }
   | { ok: false; error: string };
+
+function buildUpdateCountMismatchError(expected: number, actual: number): string {
+  return `${INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH} expected=${expected} actual=${actual}`;
+}
+
+function logIndividualBulkPublish(details: {
+  parentId: string;
+  requested: number;
+  updated: number;
+  status: 'success' | 'count_mismatch' | 'verify_failed';
+}): void {
+  if (process.env.NODE_ENV === 'production') return;
+  console.info('[Individual bulk publish]', {
+    parent: details.parentId.slice(0, 8),
+    requestedRecipients: details.requested,
+    updatedRows: details.updated,
+    status: details.status,
+  });
+}
 
 async function resolveParentByEditToken(
   supabase: SupabaseClient,
@@ -141,12 +167,53 @@ function validatePublishContent(
   return { ok: true, message, theme: content.theme, senderLinks };
 }
 
+type UpdatedRecipientRow = Pick<
+  DigitalCardRecipient,
+  | 'id'
+  | 'recipient_number'
+  | 'view_token'
+  | 'message'
+  | 'theme'
+  | 'photo_path'
+  | 'photo_original_name'
+  | 'photo_mime_type'
+  | 'photo_size_bytes'
+  | 'photo_uploaded_at'
+  | 'status'
+  | 'published_at'
+>;
+
+function verifyUpdatedRecipientRows(
+  updatedRows: UpdatedRecipientRow[],
+  recipients: DigitalCardRecipient[],
+  expectedMessage: string
+): boolean {
+  for (const row of updatedRows) {
+    const original = recipients.find((item) => item.id === row.id);
+    if (!original) return false;
+    if (original.view_token !== row.view_token) return false;
+    if (original.recipient_number !== row.recipient_number) return false;
+    if (original.photo_path !== row.photo_path) return false;
+    if (row.status !== 'published') return false;
+    if (row.message !== expectedMessage) return false;
+    if (!row.published_at) return false;
+  }
+  return true;
+}
+
+/**
+ * Publish flow ordering:
+ * 1. Validate content and resolve selected recipient rows.
+ * 2. Bulk UPDATE recipient rows (scoped by digital_card_id + id IN (...)), with .select() verification.
+ * 3. Optionally set parent first_published_at (failure here does NOT roll back recipient updates).
+ */
 export async function publishIndividualRecipientsCore(
   supabase: SupabaseClient,
   input: PublishIndividualRecipientsInput
 ): Promise<PublishIndividualRecipientsResult> {
   const recipientIds = normalizeUniqueRecipientIds(input.recipientIds);
-  if (recipientIds.length === 0) {
+  const expectedCount = recipientIds.length;
+  if (expectedCount === 0) {
     return { ok: false, error: 'Select at least one gift to publish.' };
   }
 
@@ -170,7 +237,7 @@ export async function publishIndividualRecipientsCore(
     .eq('digital_card_id', card.id)
     .in('id', recipientIds);
 
-  if (fetchError || !selectedRows || selectedRows.length !== recipientIds.length) {
+  if (fetchError || !selectedRows || selectedRows.length !== expectedCount) {
     return { ok: false, error: 'One or more selected gifts could not be found.' };
   }
 
@@ -212,27 +279,49 @@ export async function publishIndividualRecipientsCore(
     .update(updatePayload)
     .eq('digital_card_id', card.id)
     .in('id', recipientIds)
-    .select('id, recipient_number, view_token, message, theme, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at');
+    .select(
+      'id, recipient_number, view_token, message, theme, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at'
+    );
 
-  if (updateError || !updatedRows || updatedRows.length !== recipientIds.length) {
-    return { ok: false, error: 'Publishing failed. Please try again.' };
+  const actualCount = updatedRows?.length ?? 0;
+  if (updateError || actualCount !== expectedCount) {
+    logIndividualBulkPublish({
+      parentId: card.id,
+      requested: expectedCount,
+      updated: actualCount,
+      status: 'count_mismatch',
+    });
+    return {
+      ok: false,
+      error: buildUpdateCountMismatchError(expectedCount, actualCount),
+      code: INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH,
+    };
   }
 
-  for (const row of updatedRows) {
-    const original = recipients.find((item) => item.id === row.id);
-    if (!original) continue;
-    if (original.view_token !== row.view_token) {
-      return { ok: false, error: 'Publishing failed. Please try again.' };
-    }
-    if (original.recipient_number !== row.recipient_number) {
-      return { ok: false, error: 'Publishing failed. Please try again.' };
-    }
-    if (original.photo_path !== row.photo_path) {
-      return { ok: false, error: 'Publishing failed. Please try again.' };
-    }
+  if (!verifyUpdatedRecipientRows(updatedRows as UpdatedRecipientRow[], recipients, validated.message)) {
+    logIndividualBulkPublish({
+      parentId: card.id,
+      requested: expectedCount,
+      updated: actualCount,
+      status: 'verify_failed',
+    });
+    return {
+      ok: false,
+      error: buildUpdateCountMismatchError(expectedCount, actualCount),
+      code: INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH,
+    };
   }
+
+  logIndividualBulkPublish({
+    parentId: card.id,
+    requested: expectedCount,
+    updated: actualCount,
+    status: 'success',
+  });
 
   let parentFirstPublishedAt = card.first_published_at ?? null;
+  let parentLifecycleWarning: string | null = null;
+
   if (!card.first_published_at) {
     const { data: parentUpdate, error: parentUpdateError } = await supabase
       .from('digital_cards')
@@ -246,14 +335,17 @@ export async function publishIndividualRecipientsCore(
       .maybeSingle();
 
     if (parentUpdateError) {
-      return { ok: false, error: 'Publishing failed. Please try again.' };
+      parentLifecycleWarning = 'Recipient publish succeeded but parent lifecycle update failed.';
+    } else {
+      parentFirstPublishedAt = (parentUpdate?.first_published_at as string | undefined) ?? now;
     }
-    parentFirstPublishedAt = (parentUpdate?.first_published_at as string | undefined) ?? now;
   }
 
   return {
     ok: true,
     updatedRecipientIds: recipientIds,
+    updatedCount: actualCount,
     parentFirstPublishedAt,
+    parentLifecycleWarning,
   };
 }

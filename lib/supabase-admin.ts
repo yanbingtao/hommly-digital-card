@@ -2,6 +2,10 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let adminClient: SupabaseClient | null = null;
 
+/** Prevents Next.js App Router from caching Supabase REST reads (stale recipient state). */
+export const supabaseAdminFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, cache: 'no-store' });
+
 export function getSupabaseAdmin(): SupabaseClient {
   if (adminClient) return adminClient;
 
@@ -18,6 +22,9 @@ export function getSupabaseAdmin(): SupabaseClient {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    global: {
+      fetch: supabaseAdminFetch,
     },
   });
 

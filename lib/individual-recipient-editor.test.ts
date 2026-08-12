@@ -15,9 +15,14 @@ import {
   toIndividualRecipientEditorItem,
 } from './individual-recipient-editor-prefill';
 import {
+  INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH,
   loadIndividualRecipientEditorCore,
   publishIndividualRecipientsCore,
 } from './publish-individual-recipients-core';
+import {
+  computeRecipientStatusCounts,
+  toIndividualRecipientManagerItem,
+} from './individual-recipient-manager';
 import { createCardCore } from './create-card-core';
 import { parseInternalCreateCardRequest } from './internal-card-request';
 import type { CardWithOrder, DigitalCardRecipient } from './types';
@@ -80,9 +85,13 @@ function individualCard(overrides?: Partial<CardWithOrder>): CardWithOrder {
 function createPublishMockSupabase(options: {
   card: CardWithOrder;
   recipients: DigitalCardRecipient[];
+  updateMatchIds?: boolean;
+  parentUpdateError?: boolean;
 }) {
   const card = { ...options.card, order: { ...options.card.order } };
   const recipients = options.recipients.map((row) => ({ ...row }));
+  const updateMatchIds = options.updateMatchIds ?? true;
+  const parentUpdateError = options.parentUpdateError ?? false;
 
   const supabase = {
     from(table: string) {
@@ -135,6 +144,9 @@ function createPublishMockSupabase(options: {
                       select() {
                         return {
                           async maybeSingle() {
+                            if (parentUpdateError) {
+                              return { data: null, error: { message: 'parent update failed' } };
+                            }
                             if (
                               filters.every(([key, filterValue]) => {
                                 if (key === 'id') return card.id === filterValue;
@@ -143,7 +155,10 @@ function createPublishMockSupabase(options: {
                               })
                             ) {
                               Object.assign(card, patch);
-                              return { data: card, error: null };
+                              return {
+                                data: { first_published_at: card.first_published_at ?? patch.first_published_at },
+                                error: null,
+                              };
                             }
                             return { data: null, error: null };
                           },
@@ -191,30 +206,31 @@ function createPublishMockSupabase(options: {
                   in(column2: string, values: unknown[]) {
                     return {
                       select() {
+                        const matched = recipients.filter(
+                          (row) =>
+                            row[column as keyof DigitalCardRecipient] === value &&
+                            (updateMatchIds
+                              ? values.includes(row[column2 as keyof DigitalCardRecipient])
+                              : false)
+                        );
                         return Promise.resolve({
-                          data: recipients
-                            .filter(
-                              (row) =>
-                                row[column as keyof DigitalCardRecipient] === value &&
-                                values.includes(row[column2 as keyof DigitalCardRecipient])
-                            )
-                            .map((row) => {
-                              Object.assign(row, patch);
-                              return {
-                                id: row.id,
-                                recipient_number: row.recipient_number,
-                                view_token: row.view_token,
-                                message: row.message,
-                                theme: row.theme,
-                                photo_path: row.photo_path,
-                                photo_original_name: row.photo_original_name,
-                                photo_mime_type: row.photo_mime_type,
-                                photo_size_bytes: row.photo_size_bytes,
-                                photo_uploaded_at: row.photo_uploaded_at,
-                                status: row.status,
-                                published_at: row.published_at,
-                              };
-                            }),
+                          data: matched.map((row) => {
+                            Object.assign(row, patch);
+                            return {
+                              id: row.id,
+                              recipient_number: row.recipient_number,
+                              view_token: row.view_token,
+                              message: row.message,
+                              theme: row.theme,
+                              photo_path: row.photo_path,
+                              photo_original_name: row.photo_original_name,
+                              photo_mime_type: row.photo_mime_type,
+                              photo_size_bytes: row.photo_size_bytes,
+                              photo_uploaded_at: row.photo_uploaded_at,
+                              status: row.status,
+                              published_at: row.published_at,
+                            };
+                          }),
                           error: null,
                         });
                       },
@@ -579,6 +595,213 @@ describe('publishIndividualRecipientsCore', () => {
       'recipient-1',
       'recipient-2',
     ]);
+  });
+
+  it('returns updatedCount matching requested recipients', async () => {
+    const supabase = createPublishMockSupabase({
+      card: individualCard(),
+      recipients: [recipient(1), recipient(2), recipient(3)],
+    });
+    const result = await publishIndividualRecipientsCore(supabase as never, {
+      editToken: 'edit-ind-token',
+      recipientIds: ['recipient-1', 'recipient-2', 'recipient-3'],
+      content: {
+        message: 'A',
+        theme: 'thank_you',
+        show_sender_links: false,
+        sender_links: null,
+        view_pin_enabled: false,
+        view_pin: '',
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.updatedCount).toBe(3);
+    expect(result.updatedRecipientIds).toEqual(['recipient-1', 'recipient-2', 'recipient-3']);
+  });
+
+  it('fails when zero rows are updated', async () => {
+    const supabase = createPublishMockSupabase({
+      card: individualCard(),
+      recipients: [recipient(1)],
+      updateMatchIds: false,
+    });
+    const result = await publishIndividualRecipientsCore(supabase as never, {
+      editToken: 'edit-ind-token',
+      recipientIds: ['recipient-1'],
+      content: {
+        message: 'A',
+        theme: 'thank_you',
+        show_sender_links: false,
+        sender_links: null,
+        view_pin_enabled: false,
+        view_pin: '',
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe(INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH);
+    expect(result.error).toBe('INDIVIDUAL_RECIPIENT_UPDATE_COUNT_MISMATCH expected=1 actual=0');
+  });
+
+  it('does not treat parent lifecycle failure as recipient publish failure', async () => {
+    const supabase = createPublishMockSupabase({
+      card: individualCard({ first_published_at: null }),
+      recipients: [recipient(1)],
+      parentUpdateError: true,
+    });
+    const result = await publishIndividualRecipientsCore(supabase as never, {
+      editToken: 'edit-ind-token',
+      recipientIds: ['recipient-1'],
+      content: {
+        message: 'A',
+        theme: 'thank_you',
+        show_sender_links: false,
+        sender_links: null,
+        view_pin_enabled: false,
+        view_pin: '',
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.updatedCount).toBe(1);
+    expect(result.parentLifecycleWarning).toMatch(/parent lifecycle/i);
+    expect(supabase._state.recipients[0]!.status).toBe('published');
+    expect(supabase._state.recipients[0]!.message).toBe('A');
+  });
+});
+
+describe('Phase 4B publish regression — bulk, override, manager DTO', () => {
+  async function publishAllWithA(supabase: ReturnType<typeof createPublishMockSupabase>) {
+    return publishIndividualRecipientsCore(supabase as never, {
+      editToken: 'edit-ind-token',
+      recipientIds: ['recipient-1', 'recipient-2', 'recipient-3'],
+      content: {
+        message: 'A',
+        theme: 'thank_you',
+        show_sender_links: false,
+        sender_links: null,
+        view_pin_enabled: false,
+        view_pin: '',
+      },
+    });
+  }
+
+  it('persists A for all 3 and manager DTO shows 3/3 published', async () => {
+    const supabase = createPublishMockSupabase({
+      card: individualCard(),
+      recipients: [recipient(1), recipient(2), recipient(3)],
+    });
+    const result = await publishAllWithA(supabase);
+    expect(result.ok).toBe(true);
+
+    const rows = supabase._state.recipients;
+    expect(rows.every((row) => row.message === 'A' && row.status === 'published')).toBe(true);
+
+    const managerItems = rows.map((row) => toIndividualRecipientManagerItem(row));
+    const counts = computeRecipientStatusCounts(managerItems);
+    expect(counts.published_count).toBe(3);
+    expect(counts.not_started_count).toBe(0);
+    expect(counts.draft_count).toBe(0);
+  });
+
+  it('overrides #02 with B without changing siblings', async () => {
+    const supabase = createPublishMockSupabase({
+      card: individualCard({ first_published_at: '2026-08-12T07:00:00.000Z' }),
+      recipients: [
+        recipient(1, { message: 'A', status: 'published', published_at: '2026-08-12T07:00:00.000Z' }),
+        recipient(2, { message: 'A', status: 'published', published_at: '2026-08-12T07:00:00.000Z' }),
+        recipient(3, { message: 'A', status: 'published', published_at: '2026-08-12T07:00:00.000Z' }),
+      ],
+    });
+    const result = await publishIndividualRecipientsCore(supabase as never, {
+      editToken: 'edit-ind-token',
+      recipientIds: ['recipient-2'],
+      content: {
+        message: 'B',
+        theme: 'thank_you',
+        show_sender_links: false,
+        sender_links: null,
+        view_pin_enabled: false,
+        view_pin: '',
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.updatedCount).toBe(1);
+
+    const rows = supabase._state.recipients;
+    expect(rows[0]!.message).toBe('A');
+    expect(rows[1]!.message).toBe('B');
+    expect(rows[2]!.message).toBe('A');
+    expect(rows[1]!.status).toBe('published');
+
+    const counts = computeRecipientStatusCounts(rows.map((row) => toIndividualRecipientManagerItem(row)));
+    expect(counts.published_count).toBe(3);
+  });
+
+  it('published recipient with message never derives Not started', () => {
+    const item = toIndividualRecipientManagerItem(
+      recipient(2, { message: 'B', status: 'published', published_at: '2026-08-12T08:00:00.000Z' })
+    );
+    expect(item.status).toBe('published');
+    expect(item.has_message).toBe(true);
+    const counts = computeRecipientStatusCounts([item]);
+    expect(counts.not_started_count).toBe(0);
+    expect(counts.published_count).toBe(1);
+  });
+});
+
+describe('Phase 4B server wiring guards', () => {
+  it('publish and refresh actions use getSupabaseAdmin', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'lib/individual-recipient-editor-actions.ts'), 'utf8');
+    expect(source).toMatch(/getSupabaseAdmin\(\)/);
+    expect(source).not.toMatch(/getSupabase\(\)/);
+  });
+
+  it('recipient view actions use admin client with no-store fetch', () => {
+    const viewSource = fs.readFileSync(path.join(ROOT, 'lib/recipient-view-actions.ts'), 'utf8');
+    expect(viewSource).toMatch(/getSupabaseAdmin\(\)/);
+    const adminSource = fs.readFileSync(path.join(ROOT, 'lib/supabase-admin.ts'), 'utf8');
+    expect(adminSource).toMatch(/cache:\s*'no-store'/);
+  });
+
+  it('admin Supabase client uses no-store fetch', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'lib/supabase-admin.ts'), 'utf8');
+    expect(source).toMatch(/cache:\s*'no-store'/);
+  });
+
+  it('recipient table migration keeps RLS without broad anon UPDATE', () => {
+    const sql = fs.readFileSync(
+      path.join(ROOT, 'supabase/migrations/20260812140000_add_card_mode_and_digital_card_recipients.sql'),
+      'utf8'
+    );
+    expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(sql).not.toMatch(/anon_update_digital_card_recipients/);
+  });
+
+  it('manager preserves selection when refresh would fail after publish', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/individual/IndividualRecipientManager.tsx'),
+      'utf8'
+    );
+    expect(source).toMatch(/if \(refreshed\.error \|\| !refreshed\.recipients\)/);
+    expect(source).toMatch(/return;/);
+  });
+
+  it('editor only calls onPublished after verified ok response', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/individual/IndividualRecipientEditor.tsx'),
+      'utf8'
+    );
+    expect(source).toMatch(/if \(!result\.ok\)/);
+    expect(source).toMatch(/await onPublished\(\)/);
+  });
+
+  it('publish action returns updatedCount on success', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'lib/individual-recipient-editor-actions.ts'), 'utf8');
+    expect(source).toMatch(/updatedCount/);
+    expect(source).toMatch(/revalidatePath/);
   });
 });
 

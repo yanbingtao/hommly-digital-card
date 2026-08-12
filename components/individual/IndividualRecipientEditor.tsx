@@ -34,7 +34,7 @@ type IndividualRecipientEditorProps = {
   editToken: string;
   recipientIds: string[];
   onBack: () => void;
-  onPublished: () => void;
+  onPublished: () => void | Promise<void>;
 };
 
 export function IndividualRecipientEditor({
@@ -124,13 +124,13 @@ export function IndividualRecipientEditor({
     });
     setPublishing(false);
 
-    if (!result.success) {
+    if (!result.ok) {
       toast.error(result.error ?? 'Publishing failed. Please try again.');
       return;
     }
 
     toast.success('Your selected gifts were published.');
-    onPublished();
+    await onPublished();
   };
 
   if (loading || !form || !prefill || !loadResult) {
