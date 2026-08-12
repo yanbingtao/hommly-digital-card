@@ -15,6 +15,11 @@ import {
   senderLinksToFormInputs,
 } from './sender-links';
 import type { CardWithOrder, DigitalCardRecipient } from './types';
+import {
+  applyIndividualRecipientPhotoOnPublish,
+  resolveExistingPhotoMediaForRecipients,
+  type IndividualFinalPhotoState,
+} from './individual-recipient-photo';
 
 const RECIPIENT_SELECT =
   'id, digital_card_id, recipient_number, view_token, message, theme, animation, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, photo_media_id, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at, created_at, updated_at';
@@ -31,6 +36,11 @@ export type PublishIndividualRecipientsInput = {
     sender_links: Record<string, unknown> | null;
     view_pin_enabled: boolean;
     view_pin: string;
+    photo_enabled: boolean;
+    photo_file_base64?: string | null;
+    photo_mime_type?: string | null;
+    photo_original_name?: string | null;
+    photo_size_bytes?: number | null;
   };
 };
 
@@ -41,11 +51,13 @@ export type PublishIndividualRecipientsResult =
       updatedCount: number;
       parentFirstPublishedAt: string | null;
       parentLifecycleWarning: string | null;
+      photoCleanupWarning: string | null;
     }
   | {
       ok: false;
       error: string;
       code?: string;
+      contentPublished?: boolean;
     };
 
 export type LoadIndividualRecipientEditorResult =
@@ -135,7 +147,7 @@ export async function loadIndividualRecipientEditorCore(
 
   return {
     ok: true,
-    data: buildIndividualEditorLoadResult(editorItems, allRecipients.length),
+    data: buildIndividualEditorLoadResult(editorItems, allRecipients.length, selected),
   };
 }
 
@@ -174,11 +186,6 @@ type UpdatedRecipientRow = Pick<
   | 'view_token'
   | 'message'
   | 'theme'
-  | 'photo_path'
-  | 'photo_original_name'
-  | 'photo_mime_type'
-  | 'photo_size_bytes'
-  | 'photo_uploaded_at'
   | 'status'
   | 'published_at'
 >;
@@ -193,12 +200,69 @@ function verifyUpdatedRecipientRows(
     if (!original) return false;
     if (original.view_token !== row.view_token) return false;
     if (original.recipient_number !== row.recipient_number) return false;
-    if (original.photo_path !== row.photo_path) return false;
     if (row.status !== 'published') return false;
     if (row.message !== expectedMessage) return false;
     if (!row.published_at) return false;
   }
   return true;
+}
+
+function decodePhotoBuffer(base64: string): Buffer | null {
+  try {
+    return Buffer.from(base64, 'base64');
+  } catch {
+    return null;
+  }
+}
+
+async function resolveFinalPhotoState(
+  supabase: SupabaseClient,
+  content: PublishIndividualRecipientsInput['content'],
+  recipients: DigitalCardRecipient[],
+  digitalCardId: string
+): Promise<{ ok: true; photo: IndividualFinalPhotoState } | { ok: false; error: string }> {
+  if (!content.photo_enabled) {
+    return { ok: true, photo: { enabled: false } };
+  }
+
+  const base64 = content.photo_file_base64?.trim();
+  const mimeType = content.photo_mime_type?.trim();
+  const sizeBytes = content.photo_size_bytes;
+
+  if (base64 && mimeType && sizeBytes !== undefined && sizeBytes !== null) {
+    const buffer = decodePhotoBuffer(base64);
+    if (!buffer || buffer.length === 0) {
+      return { ok: false, error: 'Could not read the selected photo.' };
+    }
+    return {
+      ok: true,
+      photo: {
+        enabled: true,
+        source: 'new_upload',
+        buffer,
+        mimeType,
+        originalName: content.photo_original_name ?? null,
+        sizeBytes,
+      },
+    };
+  }
+
+  const existing = await resolveExistingPhotoMediaForRecipients(supabase, {
+    digitalCardId,
+    recipients,
+  });
+  if (!existing.ok) {
+    return { ok: false, error: existing.error };
+  }
+
+  return {
+    ok: true,
+    photo: {
+      enabled: true,
+      source: 'existing_media',
+      mediaId: existing.mediaId,
+    },
+  };
 }
 
 /**
@@ -248,6 +312,16 @@ export async function publishIndividualRecipientsCore(
     }
   }
 
+  const photoValidated = await resolveFinalPhotoState(
+    supabase,
+    input.content,
+    recipients,
+    card.id
+  );
+  if (!photoValidated.ok) {
+    return { ok: false, error: photoValidated.error };
+  }
+
   const pinResult = resolveBulkViewPinFields(
     input.content.view_pin_enabled,
     input.content.view_pin,
@@ -280,7 +354,7 @@ export async function publishIndividualRecipientsCore(
     .eq('digital_card_id', card.id)
     .in('id', recipientIds)
     .select(
-      'id, recipient_number, view_token, message, theme, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at'
+      'id, recipient_number, view_token, message, theme, status, published_at'
     );
 
   const actualCount = updatedRows?.length ?? 0;
@@ -341,11 +415,27 @@ export async function publishIndividualRecipientsCore(
     }
   }
 
+  const photoResult = await applyIndividualRecipientPhotoOnPublish(supabase, {
+    digitalCardId: card.id,
+    recipientIds,
+    photo: photoValidated.photo,
+    recipientsBefore: recipients,
+  });
+
+  if (!photoResult.ok) {
+    return {
+      ok: false,
+      error: photoResult.error,
+      contentPublished: true,
+    };
+  }
+
   return {
     ok: true,
     updatedRecipientIds: recipientIds,
     updatedCount: actualCount,
     parentFirstPublishedAt,
     parentLifecycleWarning,
+    photoCleanupWarning: photoResult.cleanupWarning,
   };
 }

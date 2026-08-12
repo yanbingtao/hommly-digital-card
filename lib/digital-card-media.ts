@@ -211,6 +211,14 @@ function normalizeUniqueRecipientIds(recipientIds: string[]): string[] {
   return Array.from(new Set(recipientIds.map((id) => id.trim()).filter(Boolean)));
 }
 
+const LEGACY_PHOTO_CLEAR = {
+  photo_path: null,
+  photo_original_name: null,
+  photo_mime_type: null,
+  photo_size_bytes: null,
+  photo_uploaded_at: null,
+};
+
 export async function assignPhotoMediaToRecipients(
   supabase: SupabaseClient,
   input: AssignPhotoMediaInput
@@ -254,7 +262,7 @@ export async function assignPhotoMediaToRecipients(
   const now = new Date().toISOString();
   const { data: updatedRows, error: updateError } = await supabase
     .from('digital_card_recipients')
-    .update({ photo_media_id: input.mediaId, updated_at: now })
+    .update({ photo_media_id: input.mediaId, updated_at: now, ...LEGACY_PHOTO_CLEAR })
     .eq('digital_card_id', input.digitalCardId)
     .in('id', recipientIds)
     .select('id');
@@ -301,7 +309,7 @@ export async function clearPhotoMediaFromRecipients(
   const now = new Date().toISOString();
   const { data: updatedRows, error: updateError } = await supabase
     .from('digital_card_recipients')
-    .update({ photo_media_id: null, updated_at: now })
+    .update({ photo_media_id: null, updated_at: now, ...LEGACY_PHOTO_CLEAR })
     .eq('digital_card_id', input.digitalCardId)
     .in('id', recipientIds)
     .select('id');

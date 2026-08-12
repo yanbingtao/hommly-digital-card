@@ -48,6 +48,22 @@ export async function loadIndividualRecipientEditor(input: {
   }
 }
 
+export async function getIndividualRecipientPhotoPreview(input: {
+  edit_token: string;
+  recipient_ids: string[];
+}): Promise<{ signedUrl: string | null; mixed: boolean; error: string | null }> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { resolveIndividualRecipientPhotoPreviewUrl } = await import('./individual-recipient-photo');
+    return await resolveIndividualRecipientPhotoPreviewUrl(supabase, {
+      editToken: input.edit_token,
+      recipientIds: input.recipient_ids,
+    });
+  } catch (err: unknown) {
+    return { signedUrl: null, mixed: false, error: getConnectionErrorMessage(err) };
+  }
+}
+
 export async function publishIndividualRecipients(input: {
   edit_token: string;
   recipient_ids: string[];
@@ -58,6 +74,11 @@ export async function publishIndividualRecipients(input: {
     sender_links: Record<string, unknown> | null;
     view_pin_enabled: boolean;
     view_pin: string;
+    photo_enabled: boolean;
+    photo_file_base64?: string | null;
+    photo_mime_type?: string | null;
+    photo_original_name?: string | null;
+    photo_size_bytes?: number | null;
   };
 }): Promise<PublishIndividualRecipientsActionResult> {
   try {

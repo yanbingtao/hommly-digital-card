@@ -580,13 +580,13 @@ describe('createDigitalCardPhotoMedia', () => {
 });
 
 describe('Phase 4B and Shared photo guards remain green', () => {
-  it('Individual editor still has no photo upload UI path', () => {
+  it('Individual editor uses real photo section', () => {
     const source = fs.readFileSync(
       path.join(ROOT, 'components/individual/IndividualRecipientEditor.tsx'),
       'utf8'
     );
-    expect(source).toMatch(/CardPhotoPlaceholderSection/);
-    expect(source).not.toMatch(/upload-photo/);
+    expect(source).toMatch(/CardIndividualPhotoSection/);
+    expect(source).not.toMatch(/CardPhotoPlaceholderSection/);
   });
 
   it('Shared editor still uses CardPhotoUpload', () => {

@@ -6,6 +6,9 @@ import {
   type SenderLinkFormInputs,
 } from './sender-links';
 import { recipientHasMeaningfulContent, toIndividualRecipientManagerItem } from './individual-recipient-manager';
+import {
+  buildPhotoPrefillState,
+} from './individual-recipient-photo';
 import type { DigitalCardRecipient } from './types';
 import type {
   IndividualEditorPrefillState,
@@ -42,6 +45,36 @@ export function toIndividualRecipientEditorItem(row: DigitalCardRecipient): Indi
     status: row.status,
     published_at: row.published_at,
     view_pin_is_set: Boolean(row.view_pin_hash),
+    has_photo: Boolean(row.photo_media_id || row.photo_path),
+  };
+}
+
+export function buildIndividualEditorPrefillFromRecipients(
+  recipientRows: DigitalCardRecipient[]
+): IndividualEditorPrefillState {
+  const messages = recipientRows.map((row) => row.message ?? '');
+  const themes = recipientRows.map((row) => (row.theme as Theme) || 'thank_you');
+  const showLinks = recipientRows.map((row) => row.show_sender_links);
+  const linkForms = recipientRows.map((row) =>
+    senderLinksToFormInputs(parseSenderLinksFromDb(row.sender_links))
+  );
+  const pinEnabled = recipientRows.map((row) => row.view_pin_enabled);
+  const photoPrefill = buildPhotoPrefillState(recipientRows);
+  const photoField =
+    photoPrefill.kind === 'mixed'
+      ? ({ kind: 'mixed' } as const)
+      : ({
+          kind: 'value' as const,
+          value: photoPrefill.value === 'none' ? ('none' as const) : ('shared' as const),
+        });
+
+  return {
+    message: fieldValue(messages, ''),
+    theme: fieldValue(themes, 'thank_you' as Theme),
+    show_sender_links: fieldValue(showLinks, false),
+    sender_links: fieldValue(linkForms, { ...EMPTY_SENDER_LINK_FORM }),
+    view_pin_enabled: fieldValue(pinEnabled, false),
+    photo: photoField,
   };
 }
 
@@ -55,6 +88,7 @@ export function buildIndividualEditorPrefill(
     senderLinksToFormInputs(parseSenderLinksFromDb(row.sender_links))
   );
   const pinEnabled = recipients.map((row) => row.view_pin_enabled);
+  const photoFlags = recipients.map((row) => (row.has_photo ? 'yes' : 'no'));
 
   return {
     message: fieldValue(messages, ''),
@@ -62,6 +96,12 @@ export function buildIndividualEditorPrefill(
     show_sender_links: fieldValue(showLinks, false),
     sender_links: fieldValue(linkForms, { ...EMPTY_SENDER_LINK_FORM }),
     view_pin_enabled: fieldValue(pinEnabled, false),
+    photo: fieldValue(photoFlags, 'no').kind === 'mixed'
+      ? { kind: 'mixed' }
+      : {
+          kind: 'value',
+          value: photoFlags[0] === 'yes' ? 'shared' : 'none',
+        },
   };
 }
 
@@ -105,14 +145,18 @@ export function buildIndividualEditorWarnings(
       recipientHasMeaningfulContent(item)
     ).length,
     has_mixed_pin: prefill.view_pin_enabled.kind === 'mixed',
+    has_mixed_photo: prefill.photo.kind === 'mixed',
   };
 }
 
 export function buildIndividualEditorLoadResult(
   selected: IndividualRecipientEditorItem[],
-  totalRecipientCount: number
+  totalRecipientCount: number,
+  recipientRows?: DigitalCardRecipient[]
 ): IndividualRecipientEditorLoadResult {
-  const prefill = buildIndividualEditorPrefill(selected);
+  const prefill = recipientRows
+    ? buildIndividualEditorPrefillFromRecipients(recipientRows)
+    : buildIndividualEditorPrefill(selected);
   return {
     recipients: [...selected].sort((a, b) => a.recipient_number - b.recipient_number),
     total_recipient_count: totalRecipientCount,
@@ -125,6 +169,10 @@ export function prefillToFormState(
   prefill: IndividualEditorPrefillState,
   recipients: IndividualRecipientEditorItem[]
 ): IndividualRecipientEditorFormState {
+  const photoMixed = prefill.photo.kind === 'mixed';
+  const photoHasExisting =
+    prefill.photo.kind === 'value' ? prefill.photo.value === 'shared' : recipients.some((r) => r.has_photo);
+
   return {
     message: prefill.message.kind === 'value' ? prefill.message.value : '',
     theme: prefill.theme.kind === 'value' ? prefill.theme.value : 'thank_you',
@@ -141,7 +189,34 @@ export function prefillToFormState(
       prefill.view_pin_enabled.kind === 'value' &&
       prefill.view_pin_enabled.value &&
       recipients.some((row) => row.view_pin_is_set),
+    photo_mode: photoMixed ? null : photoHasExisting ? 'one_photo' : 'none',
+    photo_mixed: photoMixed,
+    photo_has_existing: photoHasExisting,
   };
+}
+
+export function isPhotoPublishReady(form: IndividualRecipientEditorFormState): boolean {
+  if (form.photo_mode === null) {
+    return false;
+  }
+  if (form.photo_mode === 'none') {
+    return true;
+  }
+  return form.photo_has_existing;
+}
+
+export function getIndividualPublishOverwriteCopy(
+  selectedNumbers: number[],
+  totalRecipientCount: number
+): string {
+  const count = selectedNumbers.length;
+  if (count === 1) {
+    return `Publishing will replace the current personalisation for ${formatRecipientNumber(selectedNumbers[0]!)}.`;
+  }
+  if (count === totalRecipientCount) {
+    return `Publishing will apply these settings to all ${count} gift${count === 1 ? '' : 's'}.`;
+  }
+  return `Publishing will apply these settings to all ${count} selected gift${count === 1 ? '' : 's'}.`;
 }
 
 export function getIndividualEditorHeading(
@@ -184,7 +259,7 @@ export function formatSelectedRecipientsSummary(selectedNumbers: number[]): stri
 
 export function assertSafeEditorItem(item: unknown): void {
   if (!item || typeof item !== 'object') return;
-  const forbidden = ['view_token', 'view_pin_hash', 'photo_path', 'digital_card_id'];
+  const forbidden = ['view_token', 'view_pin_hash', 'photo_path', 'photo_media_id', 'digital_card_id'];
   for (const key of forbidden) {
     if (key in (item as Record<string, unknown>)) {
       throw new Error(`Unsafe editor item field: ${key}`);

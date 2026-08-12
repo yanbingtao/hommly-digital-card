@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { CardMessageField } from '@/components/card/CardMessageField';
-import { CardPhotoPlaceholderSection } from '@/components/card/CardPhotoPlaceholderSection';
+import { CardIndividualPhotoSection } from '@/components/card/CardIndividualPhotoSection';
 import { CardSenderLinksSection } from '@/components/card/CardSenderLinksSection';
 import { CardThemePicker } from '@/components/card/CardThemePicker';
 import { CardViewPinSection } from '@/components/card/CardViewPinSection';
@@ -20,10 +20,13 @@ import {
   formHasUnsavedChanges,
   getIndividualEditorHeading,
   getIndividualPublishLabel,
+  getIndividualPublishOverwriteCopy,
+  isPhotoPublishReady,
   prefillToFormState,
 } from '@/lib/individual-recipient-editor-prefill';
 import type {
   IndividualEditorPrefillState,
+  IndividualPhotoMode,
   IndividualRecipientEditorFormState,
   IndividualRecipientEditorLoadResult,
 } from '@/lib/individual-recipient-editor-types';
@@ -37,6 +40,16 @@ type IndividualRecipientEditorProps = {
   onPublished: () => void | Promise<void>;
 };
 
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  return btoa(binary);
+}
+
 export function IndividualRecipientEditor({
   editToken,
   recipientIds,
@@ -49,6 +62,9 @@ export function IndividualRecipientEditor({
   const [prefill, setPrefill] = useState<IndividualEditorPrefillState | null>(null);
   const [form, setForm] = useState<IndividualRecipientEditorFormState | null>(null);
   const [initialForm, setInitialForm] = useState<IndividualRecipientEditorFormState | null>(null);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [pendingPhotoPreviewUrl, setPendingPhotoPreviewUrl] = useState<string | null>(null);
+  const publishInFlightRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,12 +84,22 @@ export function IndividualRecipientEditor({
       setPrefill(result.data.prefill);
       setForm(nextForm);
       setInitialForm(nextForm);
+      setPendingPhotoFile(null);
+      setPendingPhotoPreviewUrl(null);
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
   }, [editToken, recipientIds, onBack]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingPhotoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(pendingPhotoPreviewUrl);
+      }
+    };
+  }, [pendingPhotoPreviewUrl]);
 
   const selectedNumbers = useMemo(
     () => loadResult?.recipients.map((row) => row.recipient_number) ?? [],
@@ -83,21 +109,52 @@ export function IndividualRecipientEditor({
   const heading = loadResult
     ? getIndividualEditorHeading(selectedNumbers, loadResult.total_recipient_count)
     : 'Personalise Gifts';
-  const publishLabel = loadResult
+  const publishLabel = publishing ? 'Publishing...' : loadResult
     ? getIndividualPublishLabel(selectedNumbers, loadResult.total_recipient_count)
     : 'Publish';
+  const publishOverwriteCopy = loadResult
+    ? getIndividualPublishOverwriteCopy(selectedNumbers, loadResult.total_recipient_count)
+    : '';
   const selectedSummary = formatSelectedRecipientsSummary(selectedNumbers);
 
   const handleBack = () => {
-    if (form && initialForm && formHasUnsavedChanges(form, initialForm)) {
+    if (form && initialForm && (formHasUnsavedChanges(form, initialForm) || pendingPhotoFile)) {
       const confirmed = window.confirm('You have unsaved changes. Leave this editor?');
       if (!confirmed) return;
     }
     onBack();
   };
 
+  const handleChoosePhoto = (file: File, previewUrl: string) => {
+    if (pendingPhotoPreviewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingPhotoPreviewUrl);
+    }
+    setPendingPhotoFile(file);
+    setPendingPhotoPreviewUrl(previewUrl);
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            photo_mode: 'one_photo',
+          }
+        : current
+    );
+  };
+
+  const handleClearPending = () => {
+    setPendingPhotoFile(null);
+    if (pendingPhotoPreviewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingPhotoPreviewUrl);
+    }
+    setPendingPhotoPreviewUrl(null);
+  };
+
+  const handlePhotoModeChange = (photo_mode: IndividualPhotoMode) => {
+    setForm((current) => (current ? { ...current, photo_mode } : current));
+  };
+
   const handlePublish = async () => {
-    if (!form || !loadResult) return;
+    if (!form || !loadResult || publishing || publishInFlightRef.current) return;
     if (!form.message.trim()) {
       toast.error('Please write your message before publishing');
       return;
@@ -109,7 +166,31 @@ export function IndividualRecipientEditor({
       return;
     }
 
+    if (!isPhotoPublishReady(form) && !(form.photo_mode === 'one_photo' && pendingPhotoFile)) {
+      if (form.photo_mode === null) {
+        toast.error('Choose a photo setting for the selected gifts before publishing.');
+      } else {
+        toast.error('Please choose a photo before publishing.');
+      }
+      return;
+    }
+
+    publishInFlightRef.current = true;
     setPublishing(true);
+
+    let photo_file_base64: string | null = null;
+    const photo_enabled = form.photo_mode === 'one_photo';
+    if (photo_enabled && pendingPhotoFile) {
+      try {
+        photo_file_base64 = await fileToBase64(pendingPhotoFile);
+      } catch {
+        publishInFlightRef.current = false;
+        setPublishing(false);
+        toast.error('Could not read the selected photo.');
+        return;
+      }
+    }
+
     const result = await publishIndividualRecipients({
       edit_token: editToken,
       recipient_ids: recipientIds,
@@ -120,8 +201,15 @@ export function IndividualRecipientEditor({
         sender_links: form.show_sender_links ? senderLinks : null,
         view_pin_enabled: form.view_pin_enabled,
         view_pin: form.view_pin,
+        photo_enabled,
+        photo_file_base64,
+        photo_mime_type: pendingPhotoFile?.type ?? null,
+        photo_original_name: pendingPhotoFile?.name ?? null,
+        photo_size_bytes: pendingPhotoFile?.size ?? null,
       },
     });
+
+    publishInFlightRef.current = false;
     setPublishing(false);
 
     if (!result.ok) {
@@ -162,7 +250,7 @@ export function IndividualRecipientEditor({
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
                 <p className="font-medium">These gifts currently have different content.</p>
                 <p className="mt-1 text-amber-800">
-                  Publishing changes here will apply the new content to all selected gifts.
+                  Publishing will replace the content of all selected gifts with the settings shown below.
                 </p>
               </div>
             ) : null}
@@ -197,7 +285,19 @@ export function IndividualRecipientEditor({
               <p className="text-sm text-stone-600">Add extras only if you want them.</p>
             </div>
 
-            <CardPhotoPlaceholderSection />
+            <CardIndividualPhotoSection
+              editToken={editToken}
+              recipientIds={recipientIds}
+              photoMode={form.photo_mode}
+              mixed={form.photo_mixed}
+              hasExisting={form.photo_has_existing}
+              pendingPreviewUrl={pendingPhotoPreviewUrl}
+              pendingFileName={pendingPhotoFile?.name ?? null}
+              disabled={publishing}
+              onPhotoModeChange={handlePhotoModeChange}
+              onChoosePhoto={handleChoosePhoto}
+              onClearPending={handleClearPending}
+            />
 
             <CardSenderLinksSection
               idPrefix="individual-"
@@ -226,14 +326,16 @@ export function IndividualRecipientEditor({
 
             <Separator />
 
+            <p className="text-sm text-stone-600">{publishOverwriteCopy}</p>
+
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="outline" className="flex-1" onClick={handleBack}>
+              <Button type="button" variant="outline" className="flex-1" onClick={handleBack} disabled={publishing}>
                 Back to Gifts
               </Button>
               <Button
                 type="button"
                 className="flex-1 bg-rose-500 hover:bg-rose-600"
-                onClick={handlePublish}
+                onClick={() => void handlePublish()}
                 disabled={publishing}
               >
                 {publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}

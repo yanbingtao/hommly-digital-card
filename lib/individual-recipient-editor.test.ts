@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { hashViewPin } from './view-pin-crypto';
 import { resolveBulkViewPinFields } from './individual-recipient-pin';
 import {
@@ -176,7 +176,18 @@ function createPublishMockSupabase(options: {
 
       if (table === 'digital_card_recipients') {
         return {
-          select() {
+          select(columns?: string, opts?: { count?: string; head?: boolean }) {
+            if (opts?.head) {
+              return {
+                eq(column: string, value: unknown) {
+                  const count = recipients.filter(
+                    (row) => row[column as keyof DigitalCardRecipient] === value
+                  ).length;
+                  return Promise.resolve({ count, error: null });
+                },
+              };
+            }
+
             return {
               eq(column: string, value: unknown) {
                 return {
@@ -238,6 +249,32 @@ function createPublishMockSupabase(options: {
                     };
                   },
                 };
+              },
+            };
+          },
+        };
+      }
+
+      if (table === 'digital_card_media') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  async maybeSingle() {
+                    return { data: null, error: null };
+                  },
+                  then(onFulfilled: (value: unknown) => unknown) {
+                    return Promise.resolve({ data: [], error: null }).then(onFulfilled);
+                  },
+                };
+              },
+            };
+          },
+          delete() {
+            return {
+              eq() {
+                return Promise.resolve({ error: null });
               },
             };
           },
@@ -372,6 +409,7 @@ describe('loadIndividualRecipientEditorCore', () => {
 
 describe('publishIndividualRecipientsCore', () => {
   it('publishes one recipient without changing siblings', async () => {
+    vi.spyOn(await import('./card-photo-storage'), 'deleteCardPhoto').mockResolvedValue(undefined);
     const supabase = createPublishMockSupabase({
       card: individualCard(),
       recipients: [recipient(1), recipient(2), recipient(3)],
@@ -386,6 +424,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
@@ -416,6 +455,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
@@ -440,6 +480,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
@@ -464,6 +505,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(empty.ok).toBe(false);
@@ -478,6 +520,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(badTheme.ok).toBe(false);
@@ -515,6 +558,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(disabled.ok).toBe(true);
@@ -522,7 +566,8 @@ describe('publishIndividualRecipientsCore', () => {
     expect(supabase._state.recipients[0]!.view_pin_enabled).toBe(false);
   });
 
-  it('preserves view_token, recipient_number, and photo fields', async () => {
+  it('preserves view_token and recipient_number; clears photo on full overwrite with no photo', async () => {
+    vi.spyOn(await import('./card-photo-storage'), 'deleteCardPhoto').mockResolvedValue(undefined);
     const supabase = createPublishMockSupabase({
       card: individualCard(),
       recipients: [
@@ -544,14 +589,15 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
     const after = supabase._state.recipients[0]!;
     expect(after.view_token).toBe(before.view_token);
     expect(after.recipient_number).toBe(before.recipient_number);
-    expect(after.photo_path).toBe(before.photo_path);
-    expect(after.photo_original_name).toBe(before.photo_original_name);
+    expect(after.photo_path).toBeNull();
+    expect(after.photo_original_name).toBeNull();
   });
 
   it('initializes parent first_published_at once', async () => {
@@ -569,6 +615,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(first.ok).toBe(true);
@@ -585,6 +632,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(second.ok).toBe(true);
@@ -613,6 +661,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
@@ -637,6 +686,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(false);
@@ -661,6 +711,7 @@ describe('publishIndividualRecipientsCore', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
@@ -684,6 +735,7 @@ describe('Phase 4B publish regression — bulk, override, manager DTO', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
   }
@@ -725,6 +777,7 @@ describe('Phase 4B publish regression — bulk, override, manager DTO', () => {
         sender_links: null,
         view_pin_enabled: false,
         view_pin: '',
+        photo_enabled: false,
       },
     });
     expect(result.ok).toBe(true);
@@ -833,7 +886,16 @@ describe('Phase 4B production guards', () => {
     expect(source).not.toMatch(/IndividualRecipientEditor/);
   });
 
-  it('no Individual photo mutation path added', () => {
+  it('Individual editor uses real photo section instead of placeholder', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/individual/IndividualRecipientEditor.tsx'),
+      'utf8'
+    );
+    expect(source).toMatch(/CardIndividualPhotoSection/);
+    expect(source).not.toMatch(/CardPhotoPlaceholderSection/);
+  });
+
+  it('no Individual photo upload API route added for Shared card', () => {
     const files = [
       'lib/publish-individual-recipients-core.ts',
       'components/individual/IndividualRecipientEditor.tsx',
@@ -841,7 +903,6 @@ describe('Phase 4B production guards', () => {
     for (const relative of files) {
       const source = fs.readFileSync(path.join(ROOT, relative), 'utf8');
       expect(source).not.toMatch(/upload-photo/);
-      expect(source).not.toMatch(/photo_path\s*:/);
     }
   });
 
