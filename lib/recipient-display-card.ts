@@ -1,4 +1,4 @@
-import { hasCardPhoto } from './card-photo';
+import { hasCardPhoto, hasRecipientPhoto } from './card-photo';
 import type { ResolvedRecipientView } from './recipient-view-resolver';
 import type { SenderLinks } from './sender-links';
 import type { CardMode, Theme } from './types';
@@ -32,7 +32,7 @@ export function toRecipientDisplayMeta(
       status: recipient.status,
       view_pin_enabled: Boolean(recipient.view_pin_enabled),
       show_sender_links: Boolean(recipient.show_sender_links),
-      photo_available: hasCardPhoto(recipient),
+      photo_available: hasRecipientPhoto(recipient),
       recipient_number: recipient.recipient_number,
     };
   }

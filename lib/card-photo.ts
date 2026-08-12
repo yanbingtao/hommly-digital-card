@@ -16,6 +16,36 @@ export function normalizeStoragePath(cardId: string): string {
   return `cards/${cardId}/photo.webp`;
 }
 
+/** Individual reusable media — one asset may be shared by many recipients on the same card. */
+export function normalizeIndividualMediaStoragePath(
+  digitalCardId: string,
+  mediaId: string,
+  mimeType: string
+): string {
+  return `cards/${digitalCardId}/media/${mediaId}.${mimeTypeToExtension(mimeType)}`;
+}
+
+export function mimeTypeToExtension(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    default:
+      throw new Error('Unsupported image type.');
+  }
+}
+
+export function hasRecipientPhoto(recipient: {
+  photo_media_id?: string | null;
+  photo_path?: string | null;
+  photo_uploaded_at?: string | null;
+}): boolean {
+  return Boolean(recipient.photo_media_id || recipient.photo_path || recipient.photo_uploaded_at);
+}
+
 export function hasCardPhoto(card: { photo_path?: string | null; photo_uploaded_at?: string | null }): boolean {
   return Boolean(card.photo_path || card.photo_uploaded_at);
 }

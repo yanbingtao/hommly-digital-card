@@ -45,6 +45,7 @@ function recipient(
     sender_links: null,
     view_pin_enabled: false,
     view_pin_hash: null,
+    photo_media_id: null,
     photo_path: null,
     photo_original_name: null,
     photo_mime_type: null,

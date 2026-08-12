@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isValidPublicToken, isRecipientCardUnavailable } from './card-availability';
 import { getEffectiveExpiry, isCardExpired } from './card-expiry';
-import type { CardWithOrder, DigitalCardRecipient } from './types';
+import { getDigitalCardMediaById, resolveRecipientPhotoStoragePath } from './digital-card-media';
+import type { CardWithOrder, DigitalCardMedia, DigitalCardRecipient } from './types';
 
 const RECIPIENT_RESOLVER_SELECT =
-  'id, digital_card_id, recipient_number, view_token, message, theme, animation, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at, created_at, updated_at';
+  'id, digital_card_id, recipient_number, view_token, message, theme, animation, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, photo_media_id, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at, created_at, updated_at';
 
 const PARENT_CARD_SELECT =
   'id, order_id, card_mode, platform, external_order_id, public_token, edit_token, message, theme, animation, status, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, created_at, updated_at, published_at, first_published_at, expires_at_override, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, order:orders(*)';
@@ -19,6 +20,7 @@ export type ResolvedRecipientView =
       mode: 'individual';
       card: CardWithOrder;
       recipient: DigitalCardRecipient;
+      photo_media: DigitalCardMedia | null;
     };
 
 export type ResolveRecipientViewFailureReason =
@@ -123,12 +125,24 @@ export async function resolveRecipientViewToken(
       return { ok: false, reason: 'unavailable' };
     }
 
+    let photo_media: DigitalCardMedia | null = null;
+    if (recipientRow.photo_media_id) {
+      const { media, error: mediaError } = await getDigitalCardMediaById(
+        supabase,
+        recipientRow.photo_media_id
+      );
+      if (!mediaError && media && media.digital_card_id === recipientRow.digital_card_id) {
+        photo_media = media;
+      }
+    }
+
     return {
       ok: true,
       resolved: {
         mode: 'individual',
         card: parentCard,
         recipient: recipientRow,
+        photo_media,
       },
     };
   }
@@ -176,9 +190,11 @@ export type RecipientViewPhotoSource = {
 
 export function getRecipientViewPhotoSource(resolved: ResolvedRecipientView): RecipientViewPhotoSource {
   if (resolved.mode === 'individual') {
+    const photo_path = resolveRecipientPhotoStoragePath(resolved.recipient, resolved.photo_media);
     return {
-      photo_path: resolved.recipient.photo_path ?? null,
-      photo_uploaded_at: resolved.recipient.photo_uploaded_at ?? null,
+      photo_path,
+      photo_uploaded_at:
+        resolved.photo_media?.created_at ?? resolved.recipient.photo_uploaded_at ?? null,
     };
   }
   return {

@@ -57,6 +57,7 @@ function dbRecipient(number: number, overrides?: Partial<DigitalCardRecipient>):
     sender_links: null,
     view_pin_enabled: false,
     view_pin_hash: 'secret-hash',
+    photo_media_id: null,
     photo_path: 'cards/card-ind-1/recipients/r1/photo.webp',
     photo_original_name: null,
     photo_mime_type: null,
@@ -198,6 +199,15 @@ describe('filters', () => {
 });
 
 describe('safe DTO mapping', () => {
+  it('maps has_photo from photo_media_id without exposing storage path', () => {
+    const dto = toIndividualRecipientManagerItem(
+      dbRecipient(1, { photo_media_id: 'media-a', photo_path: null })
+    );
+    expect(dto.has_photo).toBe(true);
+    assertSafeManagerItem(dto);
+    expect(dto).not.toHaveProperty('photo_media_id');
+  });
+
   it('does not expose view_pin_hash, photo_path, or message text', () => {
     const dto = toIndividualRecipientManagerItem(
       dbRecipient(1, {

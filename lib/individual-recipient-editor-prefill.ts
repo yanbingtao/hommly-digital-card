@@ -82,6 +82,7 @@ export function buildIndividualEditorWarnings(
       sender_links: row.sender_links,
       view_pin_enabled: row.view_pin_enabled,
       view_pin_hash: row.view_pin_is_set ? 'set' : null,
+      photo_media_id: null,
       photo_path: null,
       photo_original_name: null,
       photo_mime_type: null,

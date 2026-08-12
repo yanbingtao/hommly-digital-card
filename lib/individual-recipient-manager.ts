@@ -53,7 +53,7 @@ export function toIndividualRecipientManagerItem(
     recipient_number: row.recipient_number,
     status: row.status === 'published' ? 'published' : 'draft',
     has_message: Boolean(row.message?.trim()),
-    has_photo: Boolean(row.photo_path),
+    has_photo: Boolean(row.photo_media_id || row.photo_path),
     has_sender_links: recipientHasSenderLinks(row),
     view_pin_enabled: Boolean(row.view_pin_enabled),
   };

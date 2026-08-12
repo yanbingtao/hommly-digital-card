@@ -41,6 +41,18 @@ export type Theme = 'thank_you' | 'birthday' | 'farewell';
 /** Mirrors digital_cards.status and digital_card_recipients.status values in use today. */
 export type CardContentStatus = 'draft' | 'published' | 'disabled' | 'expired';
 
+export interface DigitalCardMedia {
+  id: string;
+  digital_card_id: string;
+  storage_path: string;
+  original_name: string | null;
+  mime_type: string;
+  size_bytes: number;
+  media_type?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DigitalCardRecipient {
   id: string;
   digital_card_id: string;
@@ -58,6 +70,7 @@ export interface DigitalCardRecipient {
   view_pin_enabled: boolean;
   view_pin_hash: string | null;
 
+  photo_media_id: string | null;
   photo_path: string | null;
   photo_original_name: string | null;
   photo_mime_type: string | null;

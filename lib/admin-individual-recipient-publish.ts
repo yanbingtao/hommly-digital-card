@@ -15,7 +15,7 @@ export type AdminPublishIndividualRecipientResult = {
 };
 
 const RECIPIENT_SELECT =
-  'id, digital_card_id, recipient_number, view_token, message, theme, animation, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at, created_at, updated_at';
+  'id, digital_card_id, recipient_number, view_token, message, theme, animation, show_sender_links, sender_links, view_pin_enabled, view_pin_hash, photo_media_id, photo_path, photo_original_name, photo_mime_type, photo_size_bytes, photo_uploaded_at, status, published_at, created_at, updated_at';
 
 /**
  * Publishes a single Individual-mode recipient row. Never updates sibling recipients.

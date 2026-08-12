@@ -13,7 +13,7 @@ import {
 } from './recipient-view-resolver';
 import { toRecipientDisplayContent } from './recipient-display-card';
 import { hashViewPin } from './view-pin-crypto';
-import type { CardWithOrder, DigitalCardRecipient } from './types';
+import type { CardWithOrder, DigitalCardMedia, DigitalCardRecipient } from './types';
 
 const MIGRATION_PATH = path.join(
   __dirname,
@@ -100,6 +100,7 @@ function recipient(
     sender_links: null,
     view_pin_enabled: false,
     view_pin_hash: null,
+    photo_media_id: null,
     photo_path: number === 1 ? 'cards/card-ind/recipients/r1/photo.webp' : null,
     photo_original_name: null,
     photo_mime_type: null,
@@ -116,9 +117,11 @@ function recipient(
 function createResolverMockSupabase(options: {
   recipients?: DigitalCardRecipient[];
   cards?: CardWithOrder[];
+  mediaRows?: DigitalCardMedia[];
 }) {
   const recipients = [...(options.recipients ?? [])];
   const cards = [...(options.cards ?? [])];
+  const mediaRows = [...(options.mediaRows ?? [])];
 
   return {
     from(table: string) {
@@ -132,6 +135,23 @@ function createResolverMockSupabase(options: {
                     const match = recipients.find(
                       (row) => row[column as keyof DigitalCardRecipient] === value
                     );
+                    return { data: match ?? null, error: null };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+
+      if (table === 'digital_card_media') {
+        return {
+          select() {
+            return {
+              eq(column: string, value: unknown) {
+                return {
+                  async maybeSingle() {
+                    const match = mediaRows.find((row) => row[column as keyof DigitalCardMedia] === value);
                     return { data: match ?? null, error: null };
                   },
                 };
@@ -279,6 +299,7 @@ describe('mode-aware PIN and photo sources', () => {
         view_pin_enabled: true,
         view_pin_hash: hash,
       }),
+      photo_media: null,
     };
     expect(getRecipientViewPinSource(resolved).view_pin_hash).toBe(hash);
     expect((await verifyViewerPinForResolved(resolved, '1234')).allowed).toBe(true);
@@ -295,11 +316,34 @@ describe('mode-aware PIN and photo sources', () => {
     expect((await verifyViewerPinForResolved(resolved, '4321')).allowed).toBe(true);
   });
 
+  it('uses recipient photo media path when photo_media_id is set', async () => {
+    const photoMedia: DigitalCardMedia = {
+      id: 'media-a',
+      digital_card_id: 'card-ind',
+      storage_path: 'cards/card-ind/media/media-a.webp',
+      original_name: 'photo.webp',
+      mime_type: 'image/webp',
+      size_bytes: 100,
+      created_at: '2026-08-12T08:00:00.000Z',
+      updated_at: '2026-08-12T08:00:00.000Z',
+    };
+    const supabase = createResolverMockSupabase({
+      cards: [individualParent()],
+      recipients: [recipient(1, 'indRecipTok1', { photo_media_id: 'media-a', photo_path: null })],
+      mediaRows: [photoMedia],
+    });
+    const result = await resolveRecipientViewToken(supabase as never, 'indRecipTok1');
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.resolved.mode !== 'individual') return;
+    expect(getPhotoPathForResolvedView(result.resolved)).toBe('cards/card-ind/media/media-a.webp');
+  });
+
   it('uses recipient photo path for Individual and parent path for Shared', () => {
     const individualResolved = {
       mode: 'individual' as const,
       card: individualParent(),
       recipient: recipient(1, 'indRecipTok1'),
+      photo_media: null,
     };
     expect(getPhotoPathForResolvedView(individualResolved)).toBe(
       'cards/card-ind/recipients/r1/photo.webp'
@@ -351,6 +395,7 @@ describe('resolved availability for photos', () => {
         mode: 'individual',
         card: individualParent(),
         recipient: recipient(1, 'indRecipTok1'),
+        photo_media: null,
       },
       'indRecipTok1'
     );

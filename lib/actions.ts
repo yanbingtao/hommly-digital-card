@@ -13,6 +13,7 @@ import {
 } from './recipient-view-resolver';
 import { getReactivationExpiryDate } from './card-expiry';
 import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
+import { deleteIndividualCardMediaStorage } from './digital-card-media';
 import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
 import { createCardCore } from './create-card-core';
 
@@ -341,7 +342,7 @@ export async function deleteCard(
 
     const { data: card, error: fetchError } = await supabase
       .from('digital_cards')
-      .select('id, order_id, photo_path')
+      .select('id, order_id, card_mode, photo_path')
       .eq('id', cardId)
       .maybeSingle();
 
@@ -351,6 +352,14 @@ export async function deleteCard(
 
     if (!card) {
       return { success: false, error: 'Card not found' };
+    }
+
+    if (card.card_mode === 'individual') {
+      try {
+        await deleteIndividualCardMediaStorage(getSupabaseAdmin(), card.id);
+      } catch (err: unknown) {
+        console.error('[deleteCard] Individual media cleanup failed:', err);
+      }
     }
 
     if (card.photo_path) {
