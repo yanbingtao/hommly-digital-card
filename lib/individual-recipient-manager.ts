@@ -5,6 +5,11 @@ export type RecipientPersonalisationStatus = 'not_started' | 'draft' | 'publishe
 
 export type RecipientUiFilter = 'all' | RecipientPersonalisationStatus;
 
+/** Buyer-facing manager filter — Draft is not exposed in the edit page UI. */
+export type BuyerFacingRecipientFilter = 'all' | 'published' | 'not_started';
+
+export type BuyerFacingRecipientStatus = 'published' | 'not_started';
+
 export interface IndividualRecipientManagerItem {
   id: string;
   recipient_number: number;
@@ -18,6 +23,12 @@ export interface IndividualRecipientManagerItem {
 export type RecipientStatusCounts = {
   published_count: number;
   draft_count: number;
+  not_started_count: number;
+  total_count: number;
+};
+
+export type BuyerFacingRecipientStatusCounts = {
+  published_count: number;
   not_started_count: number;
   total_count: number;
 };
@@ -137,20 +148,55 @@ export function setSingleRecipientSelection(recipientId: string): Set<string> {
   return new Set([recipientId]);
 }
 
-export function getPersonaliseActionLabel(selectedCount: number, totalCount: number): string {
-  if (selectedCount > 0 && selectedCount === totalCount) {
-    return 'Personalise All Gifts';
+export function getBuyerFacingRecipientStatus(
+  item: IndividualRecipientManagerItem
+): BuyerFacingRecipientStatus {
+  return item.status === 'published' ? 'published' : 'not_started';
+}
+
+export function computeBuyerFacingStatusCounts(
+  items: IndividualRecipientManagerItem[]
+): BuyerFacingRecipientStatusCounts {
+  let published_count = 0;
+  let not_started_count = 0;
+
+  for (const item of items) {
+    if (getBuyerFacingRecipientStatus(item) === 'published') {
+      published_count += 1;
+    } else {
+      not_started_count += 1;
+    }
   }
-  return 'Personalise Selected';
+
+  return {
+    published_count,
+    not_started_count,
+    total_count: items.length,
+  };
+}
+
+export function filterRecipientsByBuyerStatus(
+  items: IndividualRecipientManagerItem[],
+  filter: BuyerFacingRecipientFilter
+): IndividualRecipientManagerItem[] {
+  if (filter === 'all') return items;
+  return items.filter((item) => getBuyerFacingRecipientStatus(item) === filter);
+}
+
+export function getBatchEditActionLabel(selectedCount: number): string {
+  if (selectedCount <= 1) {
+    return 'Edit Selected Gift';
+  }
+  return 'Batch Edit';
+}
+
+export function formatSelectedGiftCountLabel(selectedCount: number): string {
+  return `${selectedCount} Gift${selectedCount === 1 ? '' : 's'} Selected`;
 }
 
 export function getRecipientRowSubtitle(item: IndividualRecipientManagerItem): string | null {
-  const uiStatus = getRecipientPersonalisationStatus(item);
-  if (uiStatus === 'published') {
+  if (getBuyerFacingRecipientStatus(item) === 'published') {
     return item.has_message ? 'Message added' : 'Published';
-  }
-  if (uiStatus === 'draft') {
-    return 'Not published yet';
   }
   return null;
 }

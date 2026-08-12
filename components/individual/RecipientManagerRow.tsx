@@ -2,7 +2,7 @@
 
 import { formatRecipientNumber } from '@/lib/card-recipients';
 import {
-  getRecipientPersonalisationStatus,
+  getBuyerFacingRecipientStatus,
   getRecipientRowSubtitle,
   type IndividualRecipientManagerItem,
 } from '@/lib/individual-recipient-manager';
@@ -10,9 +10,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const STATUS_LABELS = {
+const BUYER_STATUS_LABELS = {
   published: { emoji: '✅', text: 'Published' },
-  draft: { emoji: '🟡', text: 'Draft' },
   not_started: { emoji: '⚪', text: 'Not started' },
 } as const;
 
@@ -30,8 +29,8 @@ export function RecipientManagerRow({
   onEdit,
 }: RecipientManagerRowProps) {
   const label = formatRecipientNumber(item.recipient_number);
-  const uiStatus = getRecipientPersonalisationStatus(item);
-  const statusMeta = STATUS_LABELS[uiStatus];
+  const uiStatus = getBuyerFacingRecipientStatus(item);
+  const statusMeta = BUYER_STATUS_LABELS[uiStatus];
   const subtitle = getRecipientRowSubtitle(item);
 
   return (
@@ -78,10 +77,10 @@ export function RecipientStatusBadge({
   status,
   className,
 }: {
-  status: keyof typeof STATUS_LABELS;
+  status: keyof typeof BUYER_STATUS_LABELS;
   className?: string;
 }) {
-  const meta = STATUS_LABELS[status];
+  const meta = BUYER_STATUS_LABELS[status];
   return (
     <span className={cn('text-sm text-stone-700', className)}>
       <span aria-hidden="true">{meta.emoji} </span>

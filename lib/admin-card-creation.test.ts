@@ -158,7 +158,7 @@ describe('Phase 6A admin UI wiring', () => {
   it('Individual result shows Edit URL and recipient View URLs only', () => {
     const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
     expect(source).toMatch(/Edit URL/);
-    expect(source).toMatch(/IndividualRecipientList/);
+    expect(source).toMatch(/AdminIndividualRecipientQrList/);
     expect(source).not.toMatch(/Compatibility token/);
     expect(source).toMatch(/Recipient View URLs/);
   });
@@ -170,11 +170,11 @@ describe('Phase 6A admin UI wiring', () => {
     expect(source).not.toMatch(/Preview Recipient[\s\S]*public_token[\s\S]*isIndividualCard/);
   });
 
-  it('Individual does not generate N Admin QR images', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
-    expect(source).toMatch(/Download Edit QR/);
-    expect(source).not.toMatch(/recipientQrCode\.map/);
-    expect(source).not.toMatch(/Gift #01_view_qr/);
+  it('Individual recipients have compact View QR per recipient', () => {
+    const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminIndividualRecipientQrCard.tsx'), 'utf8');
+    expect(source).toMatch(/Download View QR/);
+    expect(source).toMatch(/generateCompactQRCodeDataURL/);
+    expect(source).toMatch(/individualRecipientViewQrFilename/);
   });
 
   it('Shared QR behavior remains dual QR download', () => {

@@ -10,7 +10,11 @@ import {
   clearRecipientSelection,
   computeRecipientStatusCounts,
   filterRecipientsByUiStatus,
-  getPersonaliseActionLabel,
+  getBatchEditActionLabel,
+  getBuyerFacingRecipientStatus,
+  computeBuyerFacingStatusCounts,
+  filterRecipientsByBuyerStatus,
+  formatSelectedGiftCountLabel,
   getPublishedProgressPercent,
   getRecipientPersonalisationStatus,
   getSelectedRecipientNumbers,
@@ -162,15 +166,47 @@ describe('selection helpers', () => {
     expect([...selected][0]).toBe('recipient-2');
   });
 
-  it('Personalise Selected placeholder uses selected numbers', () => {
+  it('batch edit labels use selected numbers', () => {
     const selected = new Set([items[0]!.id, items[2]!.id]);
     expect(getSelectedRecipientNumbers(selected, items)).toEqual([1, 3]);
-    expect(getPersonaliseActionLabel(2, 3)).toBe('Personalise Selected');
-    expect(getPersonaliseActionLabel(3, 3)).toBe('Personalise All Gifts');
+    expect(getBatchEditActionLabel(1)).toBe('Edit Selected Gift');
+    expect(getBatchEditActionLabel(2)).toBe('Batch Edit');
+    expect(formatSelectedGiftCountLabel(1)).toBe('1 Gift Selected');
+    expect(formatSelectedGiftCountLabel(3)).toBe('3 Gifts Selected');
   });
 });
 
-describe('filters', () => {
+describe('buyer-facing filters', () => {
+  const items = [
+    item(1, { status: 'published' }),
+    item(2, { has_message: true }),
+    item(3),
+  ];
+
+  it('filters All', () => {
+    expect(filterRecipientsByBuyerStatus(items, 'all')).toHaveLength(3);
+  });
+
+  it('filters Not started including draft content', () => {
+    expect(filterRecipientsByBuyerStatus(items, 'not_started').map((row) => row.recipient_number)).toEqual([
+      2, 3,
+    ]);
+  });
+
+  it('filters Published', () => {
+    expect(filterRecipientsByBuyerStatus(items, 'published').map((row) => row.recipient_number)).toEqual([
+      1,
+    ]);
+  });
+
+  it('buyer-facing status hides Draft label', () => {
+    expect(getBuyerFacingRecipientStatus(items[1]!)).toBe('not_started');
+    const counts = computeBuyerFacingStatusCounts(items);
+    expect(counts.not_started_count).toBe(2);
+  });
+});
+
+describe('internal admin filters', () => {
   const items = [
     item(1, { status: 'published' }),
     item(2, { has_message: true }),

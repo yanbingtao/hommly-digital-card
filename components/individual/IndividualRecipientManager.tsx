@@ -2,16 +2,17 @@
 
 import { useMemo, useState } from 'react';
 import {
-  clearRecipientSelection,
-  computeRecipientStatusCounts,
-  filterRecipientsByUiStatus,
-  getPersonaliseActionLabel,
+  computeBuyerFacingStatusCounts,
+  filterRecipientsByBuyerStatus,
+  formatSelectedGiftCountLabel,
+  getBatchEditActionLabel,
   getPublishedProgressPercent,
+  clearRecipientSelection,
   selectAllRecipientIds,
   setSingleRecipientSelection,
   toggleRecipientSelection,
+  type BuyerFacingRecipientFilter,
   type IndividualRecipientManagerItem,
-  type RecipientUiFilter,
 } from '@/lib/individual-recipient-manager';
 import { refreshIndividualRecipientManager } from '@/lib/individual-recipient-editor-actions';
 import { IndividualRecipientEditor } from '@/components/individual/IndividualRecipientEditor';
@@ -24,10 +25,9 @@ import { toast } from 'sonner';
 
 type ManagerView = 'list' | 'editor';
 
-const FILTER_OPTIONS: Array<{ id: RecipientUiFilter; label: string }> = [
+const FILTER_OPTIONS: Array<{ id: BuyerFacingRecipientFilter; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'not_started', label: 'Not started' },
-  { id: 'draft', label: 'Draft' },
   { id: 'published', label: 'Published' },
 ];
 
@@ -42,7 +42,7 @@ export function IndividualRecipientManager({
 }: IndividualRecipientManagerProps) {
   const [recipients, setRecipients] = useState(initialRecipients);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [filter, setFilter] = useState<RecipientUiFilter>('all');
+  const [filter, setFilter] = useState<BuyerFacingRecipientFilter>('all');
   const [view, setView] = useState<ManagerView>('list');
 
   const sortedRecipients = useMemo(
@@ -50,15 +50,20 @@ export function IndividualRecipientManager({
     [recipients]
   );
 
-  const counts = useMemo(() => computeRecipientStatusCounts(sortedRecipients), [sortedRecipients]);
-  const progressPercent = getPublishedProgressPercent(counts);
+  const counts = useMemo(() => computeBuyerFacingStatusCounts(sortedRecipients), [sortedRecipients]);
+  const progressPercent = getPublishedProgressPercent({
+    published_count: counts.published_count,
+    draft_count: 0,
+    not_started_count: counts.not_started_count,
+    total_count: counts.total_count,
+  });
   const visibleRecipients = useMemo(
-    () => filterRecipientsByUiStatus(sortedRecipients, filter),
+    () => filterRecipientsByBuyerStatus(sortedRecipients, filter),
     [sortedRecipients, filter]
   );
 
   const selectedCount = selectedIds.size;
-  const personaliseLabel = getPersonaliseActionLabel(selectedCount, counts.total_count);
+  const batchEditLabel = getBatchEditActionLabel(selectedCount);
   const editorRecipientIds = useMemo(() => Array.from(selectedIds), [selectedIds]);
 
   const openEditor = (nextSelection: Set<string>) => {
@@ -128,9 +133,8 @@ export function IndividualRecipientManager({
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <div className="grid gap-1 text-sm text-stone-700 sm:grid-cols-3">
+              <div className="grid gap-1 text-sm text-stone-700 sm:grid-cols-2">
                 <p>✅ Published: {counts.published_count}</p>
-                <p>🟡 Draft: {counts.draft_count}</p>
                 <p>⚪ Not started: {counts.not_started_count}</p>
               </div>
             </div>
@@ -152,9 +156,6 @@ export function IndividualRecipientManager({
               >
                 Clear
               </Button>
-              {selectedCount > 0 ? (
-                <span className="text-xs text-stone-500">{selectedCount} selected</span>
-              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter gifts">
@@ -202,14 +203,14 @@ export function IndividualRecipientManager({
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-medium text-stone-800">
-              {selectedCount} Gift{selectedCount === 1 ? '' : 's'} Selected
+              {formatSelectedGiftCountLabel(selectedCount)}
             </p>
             <Button
               type="button"
               className="bg-rose-500 hover:bg-rose-600"
               onClick={() => openEditor(new Set(selectedIds))}
             >
-              {personaliseLabel}
+              {batchEditLabel}
             </Button>
           </div>
         </div>

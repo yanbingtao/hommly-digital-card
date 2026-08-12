@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createCard, createIndividualCard, deleteCard, getCards, getAdminIndividualRecipients, reactivateCard, setCardExpiryOverride, runExpiredPhotoCleanup, adminRemoveCardPhoto } from '@/lib/actions';
-import { getAdminCardTypeLabel, isIndividualCard } from '@/lib/admin-card-helpers';
 import type { AdminIndividualRecipientItem } from '@/lib/admin-card-types';
+import { getAdminCardTypeLabel, isIndividualCard } from '@/lib/admin-card-helpers';
 import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDateTime,
@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, Gift, type LucideIcon } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
+import { AdminIndividualRecipientQrList } from '@/components/admin/AdminIndividualRecipientQrCard';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
 import { cn } from '@/lib/utils';
 
@@ -100,40 +101,6 @@ function formatPhotoTimestamp(iso: string | null | undefined): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-function IndividualRecipientList({
-  recipients,
-  copiedField,
-  onCopy,
-}: {
-  recipients: AdminIndividualRecipientItem[];
-  copiedField: string | null;
-  onCopy: (text: string, field: string) => void;
-}) {
-  return (
-    <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-stone-200 bg-white px-3 py-3">
-      {recipients.map((recipient) => (
-        <div key={recipient.recipient_number} className="rounded-lg bg-stone-50/80 px-3 py-2.5 ring-1 ring-stone-100">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-stone-800">{recipient.label}</p>
-              <p className="mt-0.5 text-[11px] text-stone-500">{recipient.statusLabel}</p>
-            </div>
-          </div>
-          <div className="mt-2">
-            <CardLinkRow
-              label="View URL"
-              url={recipient.viewUrl}
-              copyKey={`recipient-${recipient.recipient_number}`}
-              copied={copiedField === `recipient-${recipient.recipient_number}`}
-              onCopy={onCopy}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function CardLinkRow({
@@ -848,12 +815,12 @@ export function AdminCardsClient({
           }
         }}
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] w-full max-w-lg flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 space-y-1.5 border-b border-stone-200 px-6 py-4 pr-12">
             <DialogTitle className="text-base">Card Details</DialogTitle>
           </DialogHeader>
           {selectedCard && (
-            <div className="space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-stone-800">{selectedCard.order.order_number}</p>
@@ -973,7 +940,9 @@ export function AdminCardsClient({
 
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-stone-500">Edit URL</Label>
+                  <Label className="text-xs text-stone-500">
+                    {isIndividualCard(selectedCard) ? 'Edit URL — Buyer/Sender' : 'Buyer Edit Link'}
+                  </Label>
                   <div className="mt-1 flex items-center gap-2">
                     <Input
                       readOnly
@@ -1024,6 +993,34 @@ export function AdminCardsClient({
               </div>
 
               {isIndividualCard(selectedCard) ? (
+                <div className="space-y-3">
+                  <div className="flex flex-col items-center">
+                    {editQrCode ? (
+                      <img
+                        src={editQrCode}
+                        alt="Buyer edit QR code"
+                        className="h-36 w-36 rounded-lg border border-stone-200"
+                      />
+                    ) : (
+                      <div className="flex h-36 w-36 items-center justify-center rounded-lg border border-stone-200 bg-stone-50">
+                        <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
+                      </div>
+                    )}
+                    <p className="mt-2 text-center text-xs text-stone-500">Scan to open Edit Page</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={!editQrCode}
+                    onClick={handleDownloadQrCodes}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Edit QR
+                  </Button>
+                </div>
+              ) : null}
+
+              {isIndividualCard(selectedCard) ? (
                 <div className="space-y-2">
                   <Label className="text-xs text-stone-500">Recipient View URLs</Label>
                   {loadingIndividualRecipients ? (
@@ -1031,8 +1028,9 @@ export function AdminCardsClient({
                       <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
                     </div>
                   ) : individualRecipients && individualRecipients.length > 0 ? (
-                    <IndividualRecipientList
+                    <AdminIndividualRecipientQrList
                       recipients={individualRecipients}
+                      orderNumber={selectedCard.order.order_number}
                       copiedField={copiedField}
                       onCopy={handleCopy}
                     />
@@ -1042,22 +1040,7 @@ export function AdminCardsClient({
                 </div>
               ) : null}
 
-              {isIndividualCard(selectedCard) ? (
-                <div className="flex flex-col items-center">
-                  {editQrCode ? (
-                    <img
-                      src={editQrCode}
-                      alt="Buyer edit QR code"
-                      className="h-36 w-36 rounded-lg border border-stone-200"
-                    />
-                  ) : (
-                    <div className="flex h-36 w-36 items-center justify-center rounded-lg border border-stone-200 bg-stone-50">
-                      <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
-                    </div>
-                  )}
-                  <p className="mt-2 text-center text-xs text-stone-500">Scan for buyer edit page</p>
-                </div>
-              ) : (
+              {isIndividualCard(selectedCard) ? null : (
               <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col items-center">
@@ -1101,18 +1084,6 @@ export function AdminCardsClient({
               </Button>
               </>
               )}
-
-              {isIndividualCard(selectedCard) ? (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={!editQrCode}
-                  onClick={handleDownloadQrCodes}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Edit QR
-                </Button>
-              ) : null}
 
               <div className="flex gap-2">
                 <Button
