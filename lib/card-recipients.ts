@@ -68,11 +68,19 @@ export function buildRecipientRows(input: BuildRecipientRowsInput): ReturnType<t
   const tokenFactory = input.generateViewToken ?? generateRecipientViewToken;
   const rows: ReturnType<typeof buildRecipientRow>[] = [];
   const usedTokens = new Set<string>();
+  const maxAttempts = Math.max(recipient_count * 10, 20);
 
   for (let recipient_number = 1; recipient_number <= recipient_count; recipient_number += 1) {
-    let view_token = tokenFactory();
-    while (usedTokens.has(view_token)) {
-      view_token = tokenFactory();
+    let view_token: string | null = null;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const candidate = tokenFactory();
+      if (!usedTokens.has(candidate)) {
+        view_token = candidate;
+        break;
+      }
+    }
+    if (!view_token) {
+      throw new Error('Failed to generate unique recipient view tokens');
     }
     usedTokens.add(view_token);
     rows.push(buildRecipientRow({ digital_card_id, recipient_number, view_token }));

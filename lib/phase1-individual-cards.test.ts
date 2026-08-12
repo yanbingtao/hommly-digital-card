@@ -204,21 +204,33 @@ describe('generateRecipientViewToken', () => {
     expect(isValidPublicToken(token)).toBe(true);
   });
 
-  it('does not encode recipient number in the token', () => {
-    for (let n = 1; n <= 50; n += 1) {
-      const token = generateRecipientViewToken();
-      expect(token).not.toContain(String(n));
-      expect(token).not.toMatch(/^Gift #/);
-    }
+  it('uses opaque random tokens not derived from recipient_number or card id', () => {
+    const cardId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const rows = buildRecipientRows({
+      digital_card_id: cardId,
+      recipient_count: 3,
+    });
+    expect(new Set(rows.map((row) => row.view_token)).size).toBe(3);
+    rows.forEach((row) => {
+      expect(row.view_token).toHaveLength(12);
+      expect(isValidPublicToken(row.view_token)).toBe(true);
+      expect(row.view_token).not.toContain(cardId);
+    });
+
+    const tokenSource = fs.readFileSync(path.join(__dirname, 'card-tokens.ts'), 'utf8');
+    expect(tokenSource).toMatch(
+      /export function generateRecipientViewToken\(\): string \{\s*return generatePublicToken\(\);/
+    );
   });
 });
 
 describe('buildRecipientRows', () => {
   it('assigns recipient_number 1..N with unique opaque view tokens', () => {
+    let counter = 0;
     const rows = buildRecipientRows({
       digital_card_id: 'card-1',
       recipient_count: 3,
-      generateViewToken: () => 'tok012345678',
+      generateViewToken: () => `tok${String(++counter).padStart(9, '0')}`,
     });
     expect(rows.map((row) => row.recipient_number)).toEqual([1, 2, 3]);
     expect(new Set(rows.map((row) => row.view_token)).size).toBe(3);
