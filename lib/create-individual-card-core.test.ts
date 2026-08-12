@@ -694,14 +694,15 @@ describe('Shared production paths unchanged', () => {
     expect(recipientTouched).toBe(false);
   });
 
-  it('internal API parser still rejects mode and recipient_count', () => {
+  it('internal API parser supports mode and recipient_count for individual', () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
         order_id: '260810ABC123XY',
         mode: 'individual',
+        recipient_count: 37,
       }).ok
-    ).toBe(false);
+    ).toBe(true);
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
@@ -724,19 +725,11 @@ describe('Shared production paths unchanged', () => {
   });
 });
 
-describe('Phase 2 production guards', () => {
-  it('does not import individual creation core from production routes', () => {
-    const roots = [
-      'app/g/[publicToken]/page.tsx',
-      'app/e/[editToken]/page.tsx',
-      'app/api/internal/cards/route.ts',
-      'lib/create-card-core.ts',
-      'components/admin/AdminCardsClient.tsx',
-    ];
-    for (const relative of roots) {
-      const source = fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
-      expect(source).not.toMatch(/create-individual-card-core/);
-    }
+describe('Phase 6B production guards', () => {
+  it('internal route delegates through internal-card-api', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'app/api/internal/cards/route.ts'), 'utf8');
+    expect(source).toMatch(/handleInternalCreateCard/);
+    expect(source).not.toMatch(/createIndividualCardCore/);
   });
 
   it('protected production files exist and are unchanged in this phase scope', () => {

@@ -501,14 +501,15 @@ describe('Phase 3.6 production guards', () => {
     expect(source).not.toMatch(/Individual Test/);
   });
 
-  it('automation API still rejects mode and recipient_count', () => {
+  it('automation API supports individual mode with recipient_count', () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
         order_id: '260810ABC123XY',
         mode: 'individual',
+        recipient_count: 3,
       }).ok
-    ).toBe(false);
+    ).toBe(true);
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',

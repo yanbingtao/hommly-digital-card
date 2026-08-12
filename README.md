@@ -88,6 +88,121 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Open the **buyer edit link**, fill in the message, and click **Publish Card**.
 3. Open the **recipient link** (or scan the QR code) and tap **Tap to open**.
 
+## Internal automation API
+
+Hommly's Shopee automation calls `POST /api/internal/cards` to create digital cards idempotently. Authenticate with:
+
+```text
+Authorization: Bearer <AUTOMATION_SECRET>
+```
+
+Set `AUTOMATION_SECRET` in the server environment alongside the Supabase service role key.
+
+### Request
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `platform` | Yes | Currently `shopee` |
+| `order_id` | Yes | External order ID (6–32 alphanumeric characters) |
+| `mode` | No | `shared` (default) or `individual` |
+| `recipient_count` | Individual only | Number of unique recipient View URLs to create |
+
+**Backward compatibility:** omitting `mode` is equivalent to `mode: "shared"`. Existing automation payloads continue to create Shared cards unchanged.
+
+**Shared mode** — legacy or explicit:
+
+```json
+{
+  "platform": "shopee",
+  "order_id": "ORDER001"
+}
+```
+
+```json
+{
+  "platform": "shopee",
+  "order_id": "ORDER001",
+  "mode": "shared"
+}
+```
+
+Do not send `recipient_count` for Shared requests.
+
+**Individual mode** — one parent card with N recipient View URLs:
+
+```json
+{
+  "platform": "shopee",
+  "order_id": "ORDER002",
+  "mode": "individual",
+  "recipient_count": 37
+}
+```
+
+`recipient_count` is the number of unique recipient View QRs required (gift quantity). It does **not** include an Order ID label row — do not add +1.
+
+Unknown request fields are rejected.
+
+### Responses
+
+**Shared** (`mode` omitted or `"shared"`):
+
+```json
+{
+  "status": "created",
+  "mode": "shared",
+  "platform": "shopee",
+  "order_id": "ORDER001",
+  "card_name": "ORDER001-20260812120000",
+  "created_at": "2026-08-12T04:00:00.000Z",
+  "buyer_edit_url": "https://hommly.online/e/...",
+  "recipient_view_url": "https://hommly.online/g/..."
+}
+```
+
+**Individual**:
+
+```json
+{
+  "status": "created",
+  "mode": "individual",
+  "platform": "shopee",
+  "order_id": "ORDER002",
+  "card_name": "ORDER002-20260812120000",
+  "created_at": "2026-08-12T04:00:00.000Z",
+  "buyer_edit_url": "https://hommly.online/e/...",
+  "recipient_count": 3,
+  "recipients": [
+    { "number": 1, "label": "Gift #01", "view_url": "https://hommly.online/g/..." },
+    { "number": 2, "label": "Gift #02", "view_url": "https://hommly.online/g/..." }
+  ]
+}
+```
+
+Individual responses do **not** include `recipient_view_url` (no parent compatibility token is exposed).
+
+### HTTP status codes
+
+| Status | Meaning |
+|--------|---------|
+| `201` | Card created |
+| `200` | Existing card returned (idempotent reuse) |
+| `400` | Invalid request |
+| `401` | Unauthorized |
+| `409` | Mode or recipient-count conflict for existing order |
+| `500` | Creation failure |
+
+Idempotency key: `(platform, order_id)`. Repeating the same Individual request with the same `recipient_count` returns the same card and recipient tokens.
+
+### Card modes
+
+| `mode` omitted / value | Behavior |
+|------------------------|----------|
+| omitted or `shared` | One Shared card; single `recipient_view_url` |
+| `individual` + `recipient_count=N` | One parent card + N unique recipient `view_url` values |
+
+Until the Shopee automation repo is updated, all production calls omit `mode` and therefore remain Shared.
+
 ## Scripts
 
 | Command | Description |

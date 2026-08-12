@@ -393,8 +393,8 @@ describe('shared creation unchanged', () => {
   });
 });
 
-describe('internal API unchanged', () => {
-  it('response shape still exposes a single recipient_view_url', () => {
+describe('internal API — Phase 6B shared compatibility', () => {
+  it('shared response shape still exposes recipient_view_url', () => {
     const card: CardWithOrder = {
       id: 'card-1',
       order_id: 'ord-1',
@@ -422,25 +422,28 @@ describe('internal API unchanged', () => {
       siteOrigin: 'https://hommly.online',
     });
     expect(response.recipient_view_url).toBe('https://hommly.online/g/pubToken12ab');
+    expect(response.mode).toBe('shared');
     expect(response).not.toHaveProperty('recipients');
   });
 
-  it('parser rejects unknown mode field', () => {
+  it('parser accepts individual mode with recipient_count', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
       mode: 'individual',
+      recipient_count: 37,
     });
-    expect(parsed.ok).toBe(false);
-    if (parsed.ok) return;
-    expect(parsed.error).toMatch(/unexpected fields/i);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.mode).toBe('individual');
+    expect(parsed.recipientCount).toBe(37);
   });
 
-  it('parser rejects recipient_count field', () => {
+  it('parser rejects unknown fields', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
-      recipient_count: 37,
+      gift_quantity: 37,
     });
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;

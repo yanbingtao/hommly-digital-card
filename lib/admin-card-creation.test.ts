@@ -281,19 +281,20 @@ describe('Phase 6A creation routing', () => {
     expect(validateAdminIndividualRecipientQuantity(3).ok).toBe(true);
   });
 
-  it('automation API remains unchanged', () => {
-    expect(
-      parseInternalCreateCardRequest({
-        platform: 'shopee',
-        order_id: '260810ABC123XY',
-        recipient_count: 3,
-      }).ok
-    ).toBe(false);
+  it('automation API supports individual mode with recipient_count', () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
         order_id: '260810ABC123XY',
         mode: 'individual',
+        recipient_count: 3,
+      }).ok
+    ).toBe(true);
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+        recipient_count: 3,
       }).ok
     ).toBe(false);
   });
