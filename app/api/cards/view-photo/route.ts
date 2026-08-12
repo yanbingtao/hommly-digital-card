@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getConnectionErrorMessage } from '@/lib/supabase';
 import {
-  findPublishedCardByPublicToken,
-  verifyViewerPinIfRequired,
+  findPublishedViewForPhoto,
+  getPhotoPathForResolvedView,
+  verifyViewerPinForResolved,
 } from '@/lib/card-photo-access';
-import { hasCardPhoto } from '@/lib/card-photo';
 import { createPhotoSignedUrl } from '@/lib/card-photo-storage';
 
 export async function POST(request: Request) {
@@ -17,21 +17,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing card token.' }, { status: 400 });
     }
 
-    const { card, error: lookupError } = await findPublishedCardByPublicToken(publicToken);
-    if (lookupError || !card) {
+    const { resolved, error: lookupError } = await findPublishedViewForPhoto(publicToken);
+    if (lookupError || !resolved) {
       return NextResponse.json({ error: 'Card not available.' }, { status: 404 });
     }
 
-    const pinCheck = await verifyViewerPinIfRequired(card, pin);
+    const pinCheck = await verifyViewerPinForResolved(resolved, pin);
     if (!pinCheck.allowed) {
       return NextResponse.json({ error: 'PIN required or incorrect.' }, { status: 403 });
     }
 
-    if (!hasCardPhoto(card) || !card.photo_path) {
+    const photoPath = getPhotoPathForResolvedView(resolved);
+    if (!photoPath) {
       return NextResponse.json({ signedUrl: null });
     }
 
-    const signedUrl = await createPhotoSignedUrl(card.photo_path);
+    const signedUrl = await createPhotoSignedUrl(photoPath);
     if (!signedUrl) {
       return NextResponse.json({ error: 'Could not load photo.' }, { status: 500 });
     }

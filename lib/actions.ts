@@ -1,10 +1,16 @@
 'use server';
 
 import { getSupabase, getConnectionErrorMessage } from './supabase';
+import { getSupabaseAdmin } from './supabase-admin';
 import { assertAdminAuthenticated } from './admin-auth';
 import { DigitalCard, CardWithOrder } from './types';
 import { resolveViewPinFields, verifyViewPin } from './view-pin-crypto';
 import { isValidViewPin } from './view-pin';
+import {
+  getRecipientViewPinSource,
+  isResolvedRecipientViewAvailable,
+  resolveRecipientViewToken,
+} from './recipient-view-resolver';
 import { getReactivationExpiryDate } from './card-expiry';
 import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
 import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
@@ -199,23 +205,21 @@ export async function verifyCardViewPin(
       return { success: false, error: 'PIN must be 4–6 digits.' };
     }
 
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('digital_cards')
-      .select('view_pin_enabled, view_pin_hash')
-      .eq('public_token', publicToken)
-      .maybeSingle();
+    const supabase = getSupabaseAdmin();
+    const result = await resolveRecipientViewToken(supabase, publicToken);
 
-    if (error) {
+    if (!result.ok || !isResolvedRecipientViewAvailable(result.resolved)) {
       return { success: false, error: null };
     }
 
-    if (!data?.view_pin_enabled || !data.view_pin_hash) {
+    const pinSource = getRecipientViewPinSource(result.resolved);
+
+    if (!pinSource.view_pin_enabled || !pinSource.view_pin_hash) {
       return { success: true, error: null };
     }
 
     return {
-      success: verifyViewPin(pin, data.view_pin_hash),
+      success: verifyViewPin(pin, pinSource.view_pin_hash),
       error: null,
     };
   } catch (err: unknown) {

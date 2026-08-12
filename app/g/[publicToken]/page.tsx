@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { RecipientCardWithOrder, Theme } from '@/lib/types';
-import { createBrowserSupabase } from '@/lib/supabase-browser';
-import { isRecipientCardUnavailable, isValidPublicToken } from '@/lib/card-availability';
-import { isCardExpired } from '@/lib/card-expiry';
+import { Theme } from '@/lib/types';
+import { isValidPublicToken } from '@/lib/card-availability';
 import {
-  RECIPIENT_CARD_CONTENT_SELECT,
-  RECIPIENT_CARD_META_SELECT,
-} from '@/lib/recipient-card-fields';
+  fetchRecipientViewContent,
+  fetchRecipientViewMeta,
+} from '@/lib/recipient-view-actions';
+import type { RecipientDisplayCard } from '@/lib/recipient-display-card';
 import { HommlyFooter, HommlyFooterText } from '@/components/card/HommlyFooter';
 import { SignatureGreetingPage } from '@/components/card/SignatureGreetingPage';
 import { ViewPinScreen } from '@/components/card/ViewPinScreen';
@@ -24,125 +23,91 @@ import {
   themeEmoji,
 } from '@/components/card/RecipientThemeBackground';
 import { Loader2 } from 'lucide-react';
-import { hasCardPhoto } from '@/lib/card-photo';
 
 export default function RecipientViewPage() {
   const params = useParams();
-  const publicToken = params.publicToken as string;
+  const viewToken = params.publicToken as string;
 
-  const [card, setCard] = useState<RecipientCardWithOrder | null>(null);
+  const [display, setDisplay] = useState<RecipientDisplayCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [pinVerified, setPinVerified] = useState(false);
   const [verifiedPin, setVerifiedPin] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
 
-  const fetchCardContent = useCallback(async (): Promise<RecipientCardWithOrder | null> => {
-    if (!isValidPublicToken(publicToken)) return null;
+  const fetchContent = useCallback(async (): Promise<RecipientDisplayCard | null> => {
+    if (!isValidPublicToken(viewToken)) return null;
 
     try {
-      const supabase = createBrowserSupabase();
-      const { data, error } = await supabase
-        .from('digital_cards')
-        .select(`${RECIPIENT_CARD_META_SELECT}, ${RECIPIENT_CARD_CONTENT_SELECT}`)
-        .eq('public_token', publicToken)
-        .maybeSingle();
-
-      if (error || !data) {
-        return null;
-      }
-
-      if (isCardExpired(data)) {
-        return null;
-      }
-
-      if (isRecipientCardUnavailable(data as unknown as RecipientCardWithOrder | null)) {
-        return null;
-      }
-
-      return data as unknown as RecipientCardWithOrder;
+      const { available, display: content } = await fetchRecipientViewContent(viewToken);
+      if (!available || !content) return null;
+      return content;
     } catch {
       return null;
     }
-  }, [publicToken]);
+  }, [viewToken]);
 
-  const loadCard = useCallback(async () => {
+  const loadMeta = useCallback(async () => {
     setLoading(true);
 
-    if (!isValidPublicToken(publicToken)) {
+    if (!isValidPublicToken(viewToken)) {
       setUnavailable(true);
-      setCard(null);
+      setDisplay(null);
       setLoading(false);
       return;
     }
 
     try {
-      const supabase = createBrowserSupabase();
-      const { data, error } = await supabase
-        .from('digital_cards')
-        .select(RECIPIENT_CARD_META_SELECT)
-        .eq('public_token', publicToken)
-        .maybeSingle();
+      const { available, display: meta } = await fetchRecipientViewMeta(viewToken);
 
-      if (error) {
+      if (!available || !meta || meta.status !== 'published') {
         setUnavailable(true);
-        setCard(null);
-      } else if (!data) {
-        setUnavailable(true);
-        setCard(null);
-      } else if (isCardExpired(data)) {
-        setUnavailable(true);
-        setCard(null);
-      } else if (isRecipientCardUnavailable(data as unknown as RecipientCardWithOrder | null)) {
-        setUnavailable(true);
-        setCard(null);
+        setDisplay(null);
       } else {
-        const meta = data as unknown as RecipientCardWithOrder;
         setUnavailable(false);
 
         if (!meta.view_pin_enabled) {
-          const fullCard = await fetchCardContent();
-          setCard(fullCard ?? meta);
+          const full = await fetchContent();
+          setDisplay(full ?? meta);
           setPinVerified(true);
         } else {
-          setCard(meta);
+          setDisplay(meta);
           setPinVerified(false);
         }
       }
     } catch {
       setUnavailable(true);
-      setCard(null);
+      setDisplay(null);
     } finally {
       setLoading(false);
     }
-  }, [publicToken, fetchCardContent]);
+  }, [viewToken, fetchContent]);
 
   const handlePinVerified = useCallback(async (pin: string) => {
-    const fullCard = await fetchCardContent();
-    if (fullCard) {
-      setCard(fullCard);
+    const full = await fetchContent();
+    if (full) {
+      setDisplay(full);
       setVerifiedPin(pin);
       setPinVerified(true);
     }
-  }, [fetchCardContent]);
+  }, [fetchContent]);
 
   const handleOpenCard = useCallback(async () => {
-    if (!isValidPublicToken(publicToken)) return;
+    if (!isValidPublicToken(viewToken)) return;
+    if (display?.view_pin_enabled && !pinVerified) return;
 
-    if (card?.view_pin_enabled && !pinVerified) return;
-
-    const fullCard = await fetchCardContent();
-    if (fullCard) {
-      setCard(fullCard);
+    const full = await fetchContent();
+    if (full) {
+      setDisplay(full);
       setUnavailable(false);
     }
 
     setOpened(true);
-  }, [publicToken, card?.view_pin_enabled, pinVerified, fetchCardContent]);
+  }, [viewToken, display?.view_pin_enabled, pinVerified, fetchContent]);
 
   useEffect(() => {
-    loadCard();
-  }, [loadCard]);
+    void loadMeta();
+  }, [loadMeta]);
 
   if (loading) {
     return (
@@ -152,15 +117,15 @@ export default function RecipientViewPage() {
     );
   }
 
-  if (unavailable || !card || card.status !== 'published') {
+  if (unavailable || !display || display.status !== 'published') {
     return <SignatureGreetingPage />;
   }
 
-  if (card.view_pin_enabled && !pinVerified) {
+  if (display.view_pin_enabled && !pinVerified) {
     return (
       <ViewPinScreen
-        theme={card.theme as Theme}
-        publicToken={publicToken}
+        theme={display.theme as Theme}
+        publicToken={viewToken}
         onVerified={(pin) => void handlePinVerified(pin)}
       />
     );
@@ -169,7 +134,7 @@ export default function RecipientViewPage() {
   if (!opened) {
     return (
       <OpeningScreen
-        theme={card.theme as Theme}
+        theme={display.theme as Theme}
         onOpen={() => void handleOpenCard()}
       />
     );
@@ -177,10 +142,10 @@ export default function RecipientViewPage() {
 
   return (
     <CardReveal
-      card={card}
+      display={display}
       pinVerified={pinVerified}
-      publicToken={publicToken}
-      viewPin={card.view_pin_enabled ? verifiedPin : null}
+      viewToken={viewToken}
+      viewPin={display.view_pin_enabled ? verifiedPin : null}
     />
   );
 }
@@ -225,19 +190,24 @@ function OpeningScreen({ theme, onOpen }: { theme: Theme; onOpen: () => void }) 
 }
 
 function CardReveal({
-  card,
+  display,
   pinVerified = true,
-  publicToken,
+  viewToken,
   viewPin = null,
 }: {
-  card: RecipientCardWithOrder;
+  display: RecipientDisplayCard;
   pinVerified?: boolean;
-  publicToken: string;
+  viewToken: string;
   viewPin?: string | null;
 }) {
-  const theme = card.theme as Theme;
-  const visibleSenderLinks = shouldShowSenderLinks(card, { pinVerified })
-    ? getVisibleSenderLinks(card)
+  const theme = display.theme as Theme;
+  const linkCard = {
+    status: display.status,
+    show_sender_links: display.show_sender_links,
+    sender_links: display.sender_links,
+  };
+  const visibleSenderLinks = shouldShowSenderLinks(linkCard, { pinVerified })
+    ? getVisibleSenderLinks(linkCard)
     : [];
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -249,7 +219,7 @@ function CardReveal({
   }, [pinVerified]);
 
   useEffect(() => {
-    if (!pinVerified || !hasCardPhoto(card)) {
+    if (!pinVerified || !display.photo_available) {
       setPhotoUrl(null);
       return;
     }
@@ -263,8 +233,8 @@ function CardReveal({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            public_token: publicToken,
-            ...(card.view_pin_enabled && viewPin ? { pin: viewPin } : {}),
+            public_token: viewToken,
+            ...(display.view_pin_enabled && viewPin ? { pin: viewPin } : {}),
           }),
         });
         const data = (await response.json()) as { signedUrl?: string | null };
@@ -282,7 +252,7 @@ function CardReveal({
     return () => {
       cancelled = true;
     };
-  }, [card.photo_uploaded_at, card.view_pin_enabled, pinVerified, publicToken, viewPin]);
+  }, [display.photo_available, display.view_pin_enabled, pinVerified, viewToken, viewPin]);
 
   const containerBg =
     theme === 'birthday'
@@ -358,15 +328,12 @@ function CardReveal({
               className="mt-6"
             >
               <p className={`whitespace-pre-wrap text-center text-base leading-relaxed ${textColor}`}>
-                {card.message}
+                {display.message}
               </p>
             </motion.div>
 
             {visibleSenderLinks.length > 0 && (
-              <SenderLinkIcons
-                links={visibleSenderLinks}
-                className="mt-6"
-              />
+              <SenderLinkIcons links={visibleSenderLinks} className="mt-6" />
             )}
           </div>
         </motion.div>
