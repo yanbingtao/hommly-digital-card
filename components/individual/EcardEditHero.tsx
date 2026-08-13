@@ -25,7 +25,7 @@ export function EcardEditHero({ className }: EcardEditHeroProps) {
       />
       <div className="ecard-edit-hero__overlay absolute inset-0" aria-hidden="true" />
 
-      <div className="relative mx-auto flex h-[200px] w-full max-w-[800px] flex-col justify-center px-4 py-8 sm:h-[260px] sm:px-6 sm:py-10">
+      <div className="relative mx-auto flex h-[200px] w-full max-w-[800px] flex-col justify-start px-4 pt-7 pb-12 sm:h-[260px] sm:px-6 sm:pt-10 sm:pb-16">
         <div className="mb-3 flex items-center gap-2.5 sm:mb-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/92 shadow-sm shadow-stone-900/10 sm:h-10 sm:w-10">
             <BrandLogo
