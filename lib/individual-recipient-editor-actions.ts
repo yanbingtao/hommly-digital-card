@@ -14,6 +14,7 @@ import {
 } from './publish-individual-recipients-core';
 import { getRecipientsForCard } from './card-recipients';
 import type { IndividualRecipientEditorLoadResult } from './individual-recipient-editor-types';
+import { assertBuyerEditAuthorized } from './edit-pin-auth';
 
 export type PublishIndividualRecipientsActionResult =
   | {
@@ -34,6 +35,11 @@ export async function loadIndividualRecipientEditor(input: {
   recipient_ids: string[];
 }): Promise<{ data: IndividualRecipientEditorLoadResult | null; error: string | null }> {
   try {
+    const auth = await assertBuyerEditAuthorized(input.edit_token);
+    if (!auth.ok) {
+      return { data: null, error: auth.error };
+    }
+
     const supabase = getSupabaseAdmin();
     const result = await loadIndividualRecipientEditorCore(supabase, {
       editToken: input.edit_token,
@@ -53,6 +59,11 @@ export async function getIndividualRecipientPhotoPreview(input: {
   recipient_ids: string[];
 }): Promise<{ signedUrl: string | null; mixed: boolean; error: string | null }> {
   try {
+    const auth = await assertBuyerEditAuthorized(input.edit_token);
+    if (!auth.ok) {
+      return { signedUrl: null, mixed: false, error: auth.error };
+    }
+
     const supabase = getSupabaseAdmin();
     const { resolveIndividualRecipientPhotoPreviewUrl } = await import('./individual-recipient-photo');
     return await resolveIndividualRecipientPhotoPreviewUrl(supabase, {
@@ -82,6 +93,16 @@ export async function publishIndividualRecipients(input: {
   };
 }): Promise<PublishIndividualRecipientsActionResult> {
   try {
+    const auth = await assertBuyerEditAuthorized(input.edit_token);
+    if (!auth.ok) {
+      return {
+        ok: false,
+        updatedRecipientIds: null,
+        updatedCount: null,
+        error: auth.error,
+      };
+    }
+
     const supabase = getSupabaseAdmin();
     const result = await publishIndividualRecipientsCore(supabase, {
       editToken: input.edit_token,
@@ -119,6 +140,11 @@ export async function refreshIndividualRecipientManager(input: {
   edit_token: string;
 }): Promise<{ recipients: IndividualRecipientManagerItem[] | null; error: string | null }> {
   try {
+    const auth = await assertBuyerEditAuthorized(input.edit_token);
+    if (!auth.ok) {
+      return { recipients: null, error: auth.error };
+    }
+
     const supabase = getSupabaseAdmin();
     const trimmed = input.edit_token?.trim();
     if (!trimmed) {

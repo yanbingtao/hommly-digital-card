@@ -1,6 +1,7 @@
 import { loadEditPageContext } from '@/lib/edit-page-loader';
 import { SharedCardEditor } from '@/components/card/SharedCardEditor';
 import { IndividualRecipientManager } from '@/components/individual/IndividualRecipientManager';
+import { EditPinGate } from '@/components/card/EditPinGate';
 import {
   EditPageExpired,
   EditPageIndividualLoadError,
@@ -18,6 +19,10 @@ export default async function EditCardPage({ params }: EditCardPageProps) {
 
   if (context.kind === 'not_found') {
     return <EditPageNotFound />;
+  }
+
+  if (context.kind === 'needs_edit_pin') {
+    return <EditPinGate editToken={context.editToken} />;
   }
 
   if (context.kind === 'expired') {

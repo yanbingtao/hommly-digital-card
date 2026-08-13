@@ -13,6 +13,10 @@ import {
   adminRemoveCardPhoto,
   type AdminIndividualCardProgress,
 } from '@/lib/actions';
+import {
+  adminRevealEditPinAction,
+  adminResetEditPinAction,
+} from '@/lib/edit-pin-actions';
 import type { AdminIndividualRecipientItem } from '@/lib/admin-card-types';
 import {
   emptyAdminIndividualCardProgress,
@@ -227,6 +231,10 @@ export function AdminCardsClient({
   const [searchQuery, setSearchQuery] = useState('');
   const [individualRecipients, setIndividualRecipients] = useState<AdminIndividualRecipientItem[] | null>(null);
   const [loadingIndividualRecipients, setLoadingIndividualRecipients] = useState(false);
+  const [revealedEditPin, setRevealedEditPin] = useState<string | null>(null);
+  const [revealingEditPin, setRevealingEditPin] = useState(false);
+  const [resettingEditPin, setResettingEditPin] = useState(false);
+  const [confirmResetEditPin, setConfirmResetEditPin] = useState(false);
 
   const [form, setForm] = useState({
     order_number: '',
@@ -243,6 +251,11 @@ export function AdminCardsClient({
       toast.error('Failed to load cards: ' + initialError);
     }
   }, [initialError]);
+
+  useEffect(() => {
+    setRevealedEditPin(null);
+    setConfirmResetEditPin(false);
+  }, [selectedCard?.id]);
 
   useEffect(() => {
     if (!selectedCard) {
@@ -1059,6 +1072,74 @@ export function AdminCardsClient({
                   </div>
                 </div>
 
+                <div className="rounded-lg border border-stone-200 bg-stone-50/80 p-3">
+                  <Label className="text-xs text-stone-500">Edit PIN</Label>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={revealedEditPin ?? '••••••'}
+                      className="h-8 font-mono text-sm tracking-[0.2em]"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 shrink-0"
+                      disabled={revealingEditPin}
+                      onClick={() => {
+                        void (async () => {
+                          setRevealingEditPin(true);
+                          try {
+                            const result = await adminRevealEditPinAction(selectedCard.id);
+                            if (result.error || !result.pin) {
+                              toast.error(result.error || 'Could not reveal Edit PIN');
+                              return;
+                            }
+                            setRevealedEditPin(result.pin);
+                          } finally {
+                            setRevealingEditPin(false);
+                          }
+                        })();
+                      }}
+                    >
+                      {revealingEditPin ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        'Reveal'
+                      )}
+                    </Button>
+                    {revealedEditPin ? (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => handleCopy(revealedEditPin, 'detail-edit-pin')}
+                      >
+                        {copiedField === 'detail-edit-pin' ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-amber-800/90">
+                    Before sharing an Edit PIN, verify the customer&apos;s Order ID and photo of the
+                    received Hommly product.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-8 px-0 text-xs text-stone-500 hover:text-rose-600"
+                    disabled={resettingEditPin}
+                    onClick={() => setConfirmResetEditPin(true)}
+                  >
+                    Reset Edit PIN
+                  </Button>
+                </div>
+
                 {!isIndividualCard(selectedCard) ? (
                 <div>
                   <Label className="text-xs text-stone-500">Recipient QR Link</Label>
@@ -1359,6 +1440,46 @@ export function AdminCardsClient({
             >
               {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmResetEditPin} onOpenChange={setConfirmResetEditPin}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generate a new Edit PIN?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The previous PIN will stop working. Existing buyer edit sessions for this card will be
+              invalidated. The Edit QR / Edit URL stay the same.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resettingEditPin}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resettingEditPin || !selectedCard}
+              onClick={(event) => {
+                event.preventDefault();
+                if (!selectedCard) return;
+                void (async () => {
+                  setResettingEditPin(true);
+                  try {
+                    const result = await adminResetEditPinAction(selectedCard.id);
+                    if (result.error || !result.pin) {
+                      toast.error(result.error || 'Could not reset Edit PIN');
+                      return;
+                    }
+                    setRevealedEditPin(result.pin);
+                    setConfirmResetEditPin(false);
+                    toast.success('New Edit PIN generated');
+                  } finally {
+                    setResettingEditPin(false);
+                  }
+                })();
+              }}
+            >
+              {resettingEditPin ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Reset PIN
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

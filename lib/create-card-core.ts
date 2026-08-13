@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateEditToken, generatePublicToken } from './card-tokens';
+import { buildEditPinStorage } from './edit-pin-service';
+import { generateEditPin } from './edit-pin';
+import { isEditPinEncryptionConfigured } from './edit-pin-crypto';
 import type { CardWithOrder } from './types';
 
 export const AUTOMATION_PLATFORMS = ['shopee'] as const;
@@ -112,6 +115,9 @@ export async function createCardCore(
       public_token: publicToken,
       edit_token: editToken,
     };
+    if (isEditPinEncryptionConfigured()) {
+      Object.assign(insertRow, buildEditPinStorage(generateEditPin()));
+    }
     if (platform && externalOrderId) {
       insertRow.platform = platform;
       insertRow.external_order_id = externalOrderId;

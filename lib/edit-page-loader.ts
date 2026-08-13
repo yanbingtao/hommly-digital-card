@@ -11,6 +11,8 @@ import {
 import { getSupabaseAdmin } from './supabase-admin';
 import { getSupabase, getConnectionErrorMessage } from './supabase';
 import type { CardWithOrder, DigitalCardRecipient } from './types';
+import { ensureEditPinForCard } from './edit-pin-service';
+import { hasValidEditPinSession } from './edit-pin-auth';
 
 async function getCardByEditTokenForLoader(
   editToken: string
@@ -42,6 +44,11 @@ export type EditPageNotFoundContext = {
   kind: 'not_found';
 };
 
+export type EditPageNeedsPinContext = {
+  kind: 'needs_edit_pin';
+  editToken: string;
+};
+
 export type EditPageSharedContext = {
   kind: 'shared';
   editToken: string;
@@ -59,6 +66,7 @@ export type EditPageIndividualLoadErrorContext = {
 export type EditPageContext =
   | EditPageNotFoundContext
   | EditPageExpiredContext
+  | EditPageNeedsPinContext
   | EditPageSharedContext
   | EditPageIndividualContext
   | EditPageIndividualLoadErrorContext;
@@ -111,6 +119,14 @@ export async function loadEditPageContext(editToken: string): Promise<EditPageCo
   const { card, error } = await getCardByEditTokenForLoader(trimmed);
   if (error || !card) {
     return { kind: 'not_found' };
+  }
+
+  // Lazy-generate Edit PIN for legacy cards (once).
+  await ensureEditPinForCard(card.id);
+
+  const pinSessionOk = await hasValidEditPinSession(trimmed);
+  if (!pinSessionOk) {
+    return { kind: 'needs_edit_pin', editToken: trimmed };
   }
 
   if (card.card_mode === 'shared') {

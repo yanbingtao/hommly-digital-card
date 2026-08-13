@@ -24,6 +24,11 @@ export interface DigitalCard {
   sender_links?: SenderLinks | null;
   view_pin_enabled?: boolean;
   view_pin_hash?: string | null;
+  /** Buyer Edit PIN (system-generated). Separate from Viewing PIN. */
+  edit_pin_hash?: string | null;
+  edit_pin_encrypted?: string | null;
+  edit_pin_created_at?: string | null;
+  edit_session_version?: number;
   created_at: string;
   updated_at: string;
   published_at: string | null;

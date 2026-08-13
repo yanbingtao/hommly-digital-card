@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { CardWithOrder, Theme } from '@/lib/types';
-import { createBrowserSupabase } from '@/lib/supabase-browser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Loader2, Send, Eye, Sparkles, CalendarClock } from 'lucide-react';
-import { prepareViewPinForSave } from '@/lib/actions';
+import { getSharedCardForEdit, prepareViewPinForSave, publishCard } from '@/lib/actions';
 import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDate,
@@ -50,20 +49,15 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
   const loadCard = useCallback(async () => {
     setLoading(true);
     try {
-      const supabase = createBrowserSupabase();
-      const { data, error } = await supabase
-        .from('digital_cards')
-        .select('*, order:orders(*)')
-        .eq('edit_token', editToken)
-        .maybeSingle();
+      const { card: data, error } = await getSharedCardForEdit(editToken);
 
       if (error || !data) {
-        toast.error('Card not found or invalid link');
+        toast.error(error || 'Card not found or invalid link');
         setCard(null);
         return;
       }
 
-      const loaded = data as CardWithOrder;
+      const loaded = data;
       setCard(loaded);
       const storedLinks = parseSenderLinksFromDb(data.sender_links);
       setForm({
@@ -106,7 +100,6 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
     }
     setPublishing(true);
     try {
-      const supabase = createBrowserSupabase();
       const senderLinks = form.show_sender_links
         ? buildSenderLinksFromForm(form.sender_links)
         : null;
@@ -128,40 +121,26 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
         return;
       }
 
-      const now = new Date().toISOString();
-      const publishUpdate: Record<string, unknown> = {
+      const { card: data, error } = await publishCard(editToken, {
         message: form.message,
         theme: form.theme,
         show_sender_links: form.show_sender_links,
         sender_links: form.show_sender_links ? senderLinks : null,
         view_pin_enabled: pinResult.view_pin_enabled,
         view_pin_hash: pinResult.view_pin_hash,
-        status: 'published',
-        published_at: now,
-        updated_at: now,
-      };
-      if (!card?.first_published_at) {
-        publishUpdate.first_published_at = now;
-      }
-
-      const { data, error } = await supabase
-        .from('digital_cards')
-        .update(publishUpdate)
-        .eq('edit_token', editToken)
-        .select('*, order:orders(*)')
-        .single();
+      });
 
       if (error || !data) {
-        toast.error('Failed to publish: ' + (error?.message || 'Unknown error'));
+        toast.error('Failed to publish: ' + (error || 'Unknown error'));
         return;
       }
 
-      setCard(data as CardWithOrder);
+      setCard(data);
       const storedLinks = parseSenderLinksFromDb(data.sender_links);
       setForm({
         message: data.message ?? '',
         theme: (data.theme as Theme) || 'thank_you',
-        add_photo: hasCardPhoto(data as CardWithOrder),
+        add_photo: hasCardPhoto(data),
         show_sender_links: Boolean(data.show_sender_links),
         sender_links: senderLinksToFormInputs(storedLinks),
         view_pin_enabled: Boolean(data.view_pin_enabled),

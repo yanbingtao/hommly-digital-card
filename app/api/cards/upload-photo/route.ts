@@ -12,6 +12,7 @@ import {
   promoteSharedCardPhotoCandidate,
   uploadSharedCardPhotoCandidate,
 } from '@/lib/card-photo-storage';
+import { assertBuyerEditAuthorized } from '@/lib/edit-pin-auth';
 
 export async function POST(request: Request) {
   let candidatePath: string | null = null;
@@ -23,6 +24,11 @@ export async function POST(request: Request) {
 
     if (!editToken) {
       return NextResponse.json({ error: 'Missing edit token.' }, { status: 400 });
+    }
+
+    const auth = await assertBuyerEditAuthorized(editToken);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     if (!(file instanceof File)) {

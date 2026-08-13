@@ -6,6 +6,7 @@ import {
 } from '@/lib/card-photo-access';
 import { hasCardPhoto } from '@/lib/card-photo';
 import { createPhotoSignedUrl } from '@/lib/card-photo-storage';
+import { assertBuyerEditAuthorized } from '@/lib/edit-pin-auth';
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
 
     if (!editToken) {
       return NextResponse.json({ error: 'Missing edit token.' }, { status: 400 });
+    }
+
+    const auth = await assertBuyerEditAuthorized(editToken);
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: 401 });
     }
 
     const { card, error: lookupError } = await findCardByEditToken(editToken);

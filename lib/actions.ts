@@ -31,6 +31,7 @@ import type {
 import { getRecipientsForCard } from './card-recipients';
 import { buildBuyerEditUrl } from './individual-card-urls';
 import { getCanonicalSiteOrigin } from './internal-card-response';
+import { assertBuyerEditAuthorized } from './edit-pin-auth';
 
 export type { AdminIndividualCardProgress };
 
@@ -190,7 +191,14 @@ export async function getCards(): Promise<{
       return { cards: null, individualProgress: null, error: error.message };
     }
 
-    const cards = (data ?? []) as CardWithOrder[];
+    const cards = ((data ?? []) as CardWithOrder[]).map((card) => {
+      const {
+        edit_pin_hash: _hash,
+        edit_pin_encrypted: _enc,
+        ...safe
+      } = card;
+      return safe as CardWithOrder;
+    });
     const individualIds = cards.filter((card) => card.card_mode === 'individual').map((card) => card.id);
     const individualProgress = await fetchIndividualCardProgress(individualIds);
 
@@ -260,7 +268,12 @@ export async function updateCard(
   }
 ): Promise<{ card: DigitalCard | null; error: string | null }> {
   try {
-    const supabase = getSupabase();
+    const auth = await assertBuyerEditAuthorized(editToken);
+    if (!auth.ok) {
+      return { card: null, error: auth.error };
+    }
+
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('digital_cards')
       .update({
@@ -291,9 +304,14 @@ export async function publishCard(
     view_pin_enabled?: boolean;
     view_pin_hash?: string | null;
   }
-): Promise<{ card: DigitalCard | null; error: string | null }> {
+): Promise<{ card: CardWithOrder | null; error: string | null }> {
   try {
-    const supabase = getSupabase();
+    const auth = await assertBuyerEditAuthorized(editToken);
+    if (!auth.ok) {
+      return { card: null, error: auth.error };
+    }
+
+    const supabase = getSupabaseAdmin();
     const { data: existing } = await supabase
       .from('digital_cards')
       .select('first_published_at')
@@ -316,14 +334,41 @@ export async function publishCard(
         updated_at: now,
       })
       .eq('edit_token', editToken)
-      .select()
+      .select('*, order:orders(*)')
       .single();
 
     if (error) {
       return { card: null, error: error.message };
     }
 
-    return { card: data as DigitalCard | null, error: null };
+    return { card: (data as CardWithOrder | null) ?? null, error: null };
+  } catch (err: unknown) {
+    return { card: null, error: getConnectionErrorMessage(err) };
+  }
+}
+
+/** Load shared card for buyer editor — requires Edit PIN session. */
+export async function getSharedCardForEdit(
+  editToken: string
+): Promise<{ card: CardWithOrder | null; error: string | null }> {
+  try {
+    const auth = await assertBuyerEditAuthorized(editToken);
+    if (!auth.ok) {
+      return { card: null, error: auth.error };
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('digital_cards')
+      .select('*, order:orders(*)')
+      .eq('edit_token', editToken.trim())
+      .maybeSingle();
+
+    if (error) {
+      return { card: null, error: error.message };
+    }
+
+    return { card: (data as CardWithOrder | null) ?? null, error: null };
   } catch (err: unknown) {
     return { card: null, error: getConnectionErrorMessage(err) };
   }

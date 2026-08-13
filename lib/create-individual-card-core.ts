@@ -5,6 +5,9 @@ import {
   findCardByPlatformOrder,
 } from './create-card-core';
 import { generateEditToken, generatePublicToken, generateRecipientViewToken } from './card-tokens';
+import { generateEditPin } from './edit-pin';
+import { isEditPinEncryptionConfigured } from './edit-pin-crypto';
+import { buildEditPinStorage } from './edit-pin-service';
 import { validateIndividualRecipientCount } from './individual-recipient-count';
 import type { CardMode, CardWithOrder, DigitalCardRecipient } from './types';
 
@@ -259,6 +262,9 @@ export async function createIndividualCardCore(
       public_token: publicTokenFactory(),
       edit_token: generateEditToken(order.order_number as string),
     };
+    if (isEditPinEncryptionConfigured()) {
+      Object.assign(insertRow, buildEditPinStorage(generateEditPin()));
+    }
     if (platform && externalOrderId) {
       insertRow.platform = platform;
       insertRow.external_order_id = externalOrderId;
