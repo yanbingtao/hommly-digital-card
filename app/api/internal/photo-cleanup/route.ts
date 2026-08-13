@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyCronRequest } from '@/lib/automation-auth';
+import { logCronAuthDiagnostics, verifyCronRequest } from '@/lib/automation-auth';
 import { cleanupExpiredCardPhotos } from '@/lib/card-photo-cleanup';
 
 export const dynamic = 'force-dynamic';
@@ -12,10 +12,27 @@ export const runtime = 'nodejs';
  */
 async function runCleanup(request: Request) {
   const auth = verifyCronRequest(request.headers.get('authorization'));
+
   if (!auth.ok) {
-    const status = auth.error === 'cron secret is not configured' ? 503 : 401;
-    return NextResponse.json({ error: 'Unauthorized' }, { status });
+    logCronAuthDiagnostics('photo-cleanup', auth.diagnostics, auth.reason);
+
+    if (auth.reason === 'cron_secret_not_configured') {
+      // Server misconfiguration — not a client credential mistake.
+      console.error('[photo-cleanup] CRON_SECRET is not configured');
+      return NextResponse.json(
+        { error: 'Server misconfigured', code: 'CRON_SECRET_NOT_CONFIGURED' },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Temporary safe confirmation that Production loaded CRON_SECRET (length only).
+  console.info('[photo-cleanup] CRON_SECRET configured', {
+    cronSecretConfigured: true,
+    cronSecretLength: auth.diagnostics.cronSecretLength,
+  });
 
   try {
     const result = await cleanupExpiredCardPhotos();

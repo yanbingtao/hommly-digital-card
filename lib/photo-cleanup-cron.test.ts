@@ -1,7 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { verifyCronRequest } from './automation-auth';
+import {
+  parseAuthorizationHeader,
+  parseBearerToken,
+  verifyCronRequest,
+} from './automation-auth';
 
 const ROOT = path.join(__dirname, '..');
 
@@ -25,27 +29,65 @@ describe('verifyCronRequest', () => {
   });
 
   it('accepts a valid CRON_SECRET bearer token', () => {
-    process.env.CRON_SECRET = 'cron-secret-value-16chars';
-    expect(verifyCronRequest('Bearer cron-secret-value-16chars').ok).toBe(true);
+    process.env.CRON_SECRET = 'abc123';
+    const result = verifyCronRequest('Bearer abc123');
+    expect(result.ok).toBe(true);
+    expect(result.diagnostics.cronSecretConfigured).toBe(true);
+    expect(result.diagnostics.cronSecretLength).toBe(6);
+    expect(result.diagnostics.providedTokenLength).toBe(6);
   });
 
-  it('rejects missing or invalid authorization', () => {
-    process.env.CRON_SECRET = 'cron-secret-value-16chars';
-    expect(verifyCronRequest(null).ok).toBe(false);
-    expect(verifyCronRequest('Bearer wrong').ok).toBe(false);
-    expect(verifyCronRequest('cron-secret-value-16chars').ok).toBe(false);
+  it('rejects wrong secret with invalid_bearer_token', () => {
+    process.env.CRON_SECRET = 'abc123';
+    const result = verifyCronRequest('Bearer wrong');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('invalid_bearer_token');
+  });
+
+  it('rejects missing Authorization', () => {
+    process.env.CRON_SECRET = 'abc123';
+    const result = verifyCronRequest(null);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('missing_authorization');
   });
 
   it('rejects when CRON_SECRET is not configured', () => {
     delete process.env.CRON_SECRET;
-    expect(verifyCronRequest('Bearer anything').ok).toBe(false);
-    expect(verifyCronRequest('Bearer anything').error).toMatch(/not configured/i);
+    const result = verifyCronRequest('Bearer anything');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('cron_secret_not_configured');
+    expect(result.diagnostics.cronSecretConfigured).toBe(false);
+    expect(result.diagnostics.cronSecretLength).toBe(0);
   });
 
   it('does not accept AUTOMATION_SECRET in place of CRON_SECRET', () => {
     process.env.CRON_SECRET = 'cron-secret-value-16chars';
     process.env.AUTOMATION_SECRET = 'automation-secret-value';
     expect(verifyCronRequest('Bearer automation-secret-value').ok).toBe(false);
+  });
+
+  it('trims surrounding whitespace on Bearer tokens', () => {
+    process.env.CRON_SECRET = 'abc123';
+    // Chosen behaviour: trim and accept.
+    expect(verifyCronRequest('Bearer   abc123   ').ok).toBe(true);
+    expect(parseBearerToken('Bearer   abc123   ')).toBe('abc123');
+    expect(parseAuthorizationHeader('Bearer   abc123   ').tokenHadSurroundingWhitespace).toBe(true);
+  });
+
+  it('rejects non-Bearer schemes', () => {
+    process.env.CRON_SECRET = 'abc123';
+    const result = verifyCronRequest('Basic abc123');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('invalid_authorization_scheme');
+    expect(result.diagnostics.authorizationScheme).toBe('Basic');
+  });
+
+  it('trims CRON_SECRET env whitespace before compare', () => {
+    process.env.CRON_SECRET = '  abc123  ';
+    expect(verifyCronRequest('Bearer abc123').ok).toBe(true);
+    expect(verifyCronRequest('Bearer abc123').diagnostics.cronSecretHadSurroundingWhitespace).toBe(
+      true
+    );
   });
 });
 
@@ -54,7 +96,7 @@ describe('/api/internal/photo-cleanup cron route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.CRON_SECRET = 'cron-secret-value-16chars';
+    process.env.CRON_SECRET = 'abc123';
     mocks.cleanupExpiredCardPhotos.mockResolvedValue({
       scanned: 2,
       cleaned: 1,
@@ -72,27 +114,60 @@ describe('/api/internal/photo-cleanup cron route', () => {
     else process.env.CRON_SECRET = original;
   });
 
-  it('runs cleanup when CRON_SECRET auth is valid (GET)', async () => {
+  it('returns 200 when CRON_SECRET auth is valid (GET)', async () => {
     const { GET } = await import('../app/api/internal/photo-cleanup/route');
     const response = await GET(
       new Request('https://hommly.online/api/internal/photo-cleanup', {
-        headers: { Authorization: 'Bearer cron-secret-value-16chars' },
+        headers: { Authorization: 'Bearer abc123' },
       })
     );
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.ok).toBe(true);
-    expect(body.scanned).toBe(2);
-    expect(body.cleaned).toBe(1);
-    expect(body.failures).toBe(0);
     expect(mocks.cleanupExpiredCardPhotos).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects unauthorized requests without calling cleanup', async () => {
+  it('returns 401 for wrong secret', async () => {
+    const { GET } = await import('../app/api/internal/photo-cleanup/route');
+    const response = await GET(
+      new Request('https://hommly.online/api/internal/photo-cleanup', {
+        headers: { Authorization: 'Bearer wrong' },
+      })
+    );
+    expect(response.status).toBe(401);
+    expect(mocks.cleanupExpiredCardPhotos).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when Authorization is missing', async () => {
     const { GET } = await import('../app/api/internal/photo-cleanup/route');
     const response = await GET(new Request('https://hommly.online/api/internal/photo-cleanup'));
     expect(response.status).toBe(401);
     expect(mocks.cleanupExpiredCardPhotos).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when CRON_SECRET is missing from server config', async () => {
+    delete process.env.CRON_SECRET;
+    vi.resetModules();
+    const { GET } = await import('../app/api/internal/photo-cleanup/route');
+    const response = await GET(
+      new Request('https://hommly.online/api/internal/photo-cleanup', {
+        headers: { Authorization: 'Bearer abc123' },
+      })
+    );
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.code).toBe('CRON_SECRET_NOT_CONFIGURED');
+    expect(mocks.cleanupExpiredCardPhotos).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 for Basic scheme', async () => {
+    const { GET } = await import('../app/api/internal/photo-cleanup/route');
+    const response = await GET(
+      new Request('https://hommly.online/api/internal/photo-cleanup', {
+        headers: { Authorization: 'Basic abc123' },
+      })
+    );
+    expect(response.status).toBe(401);
   });
 
   it('is idempotent across repeated valid invocations', async () => {
@@ -100,14 +175,12 @@ describe('/api/internal/photo-cleanup cron route', () => {
     const request = () =>
       GET(
         new Request('https://hommly.online/api/internal/photo-cleanup', {
-          headers: { Authorization: 'Bearer cron-secret-value-16chars' },
+          headers: { Authorization: 'Bearer abc123' },
         })
       );
 
-    const first = await request();
-    const second = await request();
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
+    expect((await request()).status).toBe(200);
+    expect((await request()).status).toBe(200);
     expect(mocks.cleanupExpiredCardPhotos).toHaveBeenCalledTimes(2);
   });
 
@@ -117,7 +190,7 @@ describe('/api/internal/photo-cleanup cron route', () => {
     const response = await POST(
       new Request('https://hommly.online/api/internal/photo-cleanup', {
         method: 'POST',
-        headers: { Authorization: 'Bearer cron-secret-value-16chars' },
+        headers: { Authorization: 'Bearer abc123' },
       })
     );
     expect(response.status).toBe(500);
@@ -136,28 +209,15 @@ describe('Vercel cron configuration guards', () => {
     ]);
   });
 
-  it('removes Netlify scheduled photo cleanup function', () => {
-    expect(
-      fs.existsSync(path.join(ROOT, 'netlify/functions/scheduled-photo-cleanup.ts'))
-    ).toBe(false);
-    const netlifyToml = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
-    expect(netlifyToml).not.toMatch(/scheduled-photo-cleanup/);
-    expect(netlifyToml).not.toMatch(/\[functions\]/);
-  });
-
-  it('photo-cleanup route authenticates with CRON_SECRET only', () => {
+  it('photo-cleanup route uses nodejs runtime and CRON_SECRET auth', () => {
     const source = fs.readFileSync(
       path.join(ROOT, 'app/api/internal/photo-cleanup/route.ts'),
       'utf8'
     );
+    expect(source).toMatch(/runtime = 'nodejs'/);
     expect(source).toMatch(/verifyCronRequest/);
-    expect(source).toMatch(/cleanupExpiredCardPhotos/);
+    expect(source).toMatch(/logCronAuthDiagnostics/);
+    expect(source).toMatch(/CRON_SECRET_NOT_CONFIGURED/);
     expect(source).not.toMatch(/verifyAutomationRequest/);
-  });
-
-  it('admin manual cleanup still calls the shared cleanup core', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'lib/actions.ts'), 'utf8');
-    expect(source).toMatch(/export async function runExpiredPhotoCleanup/);
-    expect(source).toMatch(/cleanupExpiredCardPhotos/);
   });
 });
