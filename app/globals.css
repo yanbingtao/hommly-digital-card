@@ -104,3 +104,43 @@
     background-color: #a8a29e;
   }
 }
+
+/* Individual eCard edit page hero — tune tokens when swapping background imagery */
+.ecard-edit-hero {
+  --ecard-hero-fallback: #3f3a36;
+  --ecard-hero-overlay: rgba(28, 25, 23, 0.42);
+  --ecard-hero-fg: #ffffff;
+  --ecard-hero-muted: rgba(255, 255, 255, 0.86);
+  --ecard-hero-eyebrow: rgba(255, 255, 255, 0.78);
+  --ecard-hero-position: center;
+  background-color: var(--ecard-hero-fallback);
+}
+
+.ecard-edit-hero__bg {
+  background-color: var(--ecard-hero-fallback);
+  background-position: var(--ecard-hero-position);
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.ecard-edit-hero__overlay {
+  background-color: var(--ecard-hero-overlay);
+}
+
+.ecard-edit-hero__eyebrow {
+  color: var(--ecard-hero-eyebrow);
+}
+
+.ecard-edit-hero__title {
+  color: var(--ecard-hero-fg);
+}
+
+.ecard-edit-hero__subtitle {
+  color: var(--ecard-hero-muted);
+}
+
+@media (max-width: 639px) {
+  .ecard-edit-hero {
+    --ecard-hero-position: center 35%;
+  }
+}

@@ -324,7 +324,7 @@ describe('edit page mode routing', () => {
       'utf8'
     );
     expect(source).not.toMatch(/SharedCardEditor/);
-    expect(source).toMatch(/Personalise your gifts/);
+    expect(source).toMatch(/EcardEditHero/);
   });
 
   it('loads recipients server-side via edit-page-loader', () => {

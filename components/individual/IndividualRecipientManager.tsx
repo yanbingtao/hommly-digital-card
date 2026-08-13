@@ -17,7 +17,7 @@ import {
   type IndividualRecipientManagerItem,
 } from '@/lib/individual-recipient-manager';
 import { refreshIndividualRecipientManager } from '@/lib/individual-recipient-editor-actions';
-import { BrandLogo } from '@/components/BrandLogo';
+import { EcardEditHero } from '@/components/individual/EcardEditHero';
 import { IndividualRecipientEditor } from '@/components/individual/IndividualRecipientEditor';
 import { RecipientManagerRow } from '@/components/individual/RecipientManagerRow';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -32,7 +32,7 @@ const FILTER_OPTIONS: Array<{
   countKey: 'total_count' | 'not_started_count' | 'published_count';
 }> = [
   { id: 'all', label: 'All', countKey: 'total_count' },
-  { id: 'not_started', label: 'To personalise', countKey: 'not_started_count' },
+  { id: 'not_started', label: 'To edit', countKey: 'not_started_count' },
   { id: 'published', label: 'Ready', countKey: 'published_count' },
 ];
 
@@ -150,28 +150,15 @@ export function IndividualRecipientManager({
 
   return (
     <div className="min-h-screen bg-[#faf8f6] pb-32">
-      <main className="mx-auto w-full max-w-[800px] px-4 py-8 sm:px-6 sm:py-12">
-        <header className="mb-8 sm:mb-10">
-          <BrandLogo
-            href={null}
-            showText={false}
-            className="mb-4"
-            imageClassName="h-8 w-8"
-          />
-          <h1 className="text-2xl font-semibold tracking-tight text-stone-900 sm:text-[1.75rem]">
-            Personalise your gifts
-          </h1>
-          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-stone-500 sm:text-base">
-            Add a personal touch to each gift — or select several to personalise them together.
-          </p>
-        </header>
+      <EcardEditHero />
 
+      <main className="relative z-10 mx-auto -mt-5 w-full max-w-[800px] px-4 pb-8 pt-6 sm:-mt-7 sm:px-6 sm:pb-12 sm:pt-8">
         <section className="mb-8 sm:mb-10" aria-labelledby="gift-progress-heading">
           <h2
             id="gift-progress-heading"
             className="text-lg font-semibold tracking-tight text-stone-900 sm:text-xl"
           >
-            {counts.published_count} of {counts.total_count} ready
+            {counts.published_count} of {counts.total_count} eCards ready
           </h2>
 
           <div
@@ -196,16 +183,16 @@ export function IndividualRecipientManager({
               </dd>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <dt className="sr-only">Ready</dt>
+              <dt className="sr-only">eCards ready</dt>
               <dd>
-                <span className="font-medium text-stone-700">{counts.published_count}</span> ready
+                <span className="font-medium text-stone-700">{counts.published_count}</span> eCards
+                ready
               </dd>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <dt className="sr-only">To personalise</dt>
+              <dt className="sr-only">To edit</dt>
               <dd>
-                <span className="font-medium text-stone-700">{counts.not_started_count}</span> to
-                personalise
+                <span className="font-medium text-stone-700">{counts.not_started_count}</span> to edit
               </dd>
             </div>
           </dl>

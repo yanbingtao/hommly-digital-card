@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 const BUYER_STATUS_LABELS = {
   published: { text: 'Ready' },
-  not_started: { text: 'To personalise' },
+  not_started: { text: 'To edit' },
 } as const;
 
 type RecipientManagerRowProps = {

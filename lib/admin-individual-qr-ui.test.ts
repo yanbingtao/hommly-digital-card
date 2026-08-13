@@ -164,13 +164,24 @@ describe('Individual Recipient Manager UI guards', () => {
     );
     expect(managerSource).not.toMatch(/Draft:/);
     expect(managerSource).not.toMatch(/id: 'draft'/);
-    expect(managerSource).toMatch(/To personalise/);
+    expect(managerSource).toMatch(/To edit/);
     expect(managerSource).toMatch(/getBatchEditActionLabel/);
     expect(managerSource).toMatch(/batchEditLabel/);
-    expect(managerSource).toMatch(/BrandLogo/);
+    expect(managerSource).toMatch(/EcardEditHero/);
     expect(managerSource).toMatch(/gift-list-scroll/);
     expect(managerSource).toMatch(/selectAllRecipientIds\(sortedRecipients\)/);
     expect(labelSource).toMatch(/Edit selected eCard/);
+  });
+
+  it('buyer manager hero uses replaceable Hommly background asset', () => {
+    const heroSource = fs.readFileSync(
+      path.join(ROOT, 'components/individual/EcardEditHero.tsx'),
+      'utf8'
+    );
+    expect(heroSource).toMatch(/\/ecard-hero\.jpg/);
+    expect(heroSource).toMatch(/BrandLogo/);
+    expect(heroSource).toMatch(/Make your Hommly gifts more personal/);
+    expect(heroSource).toMatch(/Hommly eCards/);
   });
 
   it('row-level Edit eCard remains for every gift', () => {
