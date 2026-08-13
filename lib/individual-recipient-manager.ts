@@ -183,12 +183,36 @@ export function filterRecipientsByBuyerStatus(
   return items.filter((item) => getBuyerFacingRecipientStatus(item) === filter);
 }
 
-export function getBatchEditActionLabel(_selectedCount: number): string {
-  return 'Personalise selected →';
+export function getBatchEditActionLabel(selectedCount: number): string {
+  if (selectedCount <= 1) {
+    return 'Edit selected eCard →';
+  }
+  return 'Edit selected eCards →';
 }
 
 export function formatSelectedGiftCountLabel(selectedCount: number): string {
-  return `${selectedCount} gift${selectedCount === 1 ? '' : 's'} selected`;
+  return `${selectedCount} selected`;
+}
+
+export type SelectAllToolbarState = 'none' | 'partial' | 'all';
+
+export function getSelectAllToolbarState(
+  selectedCount: number,
+  totalCount: number
+): SelectAllToolbarState {
+  if (totalCount <= 0 || selectedCount <= 0) return 'none';
+  if (selectedCount >= totalCount) return 'all';
+  return 'partial';
+}
+
+export function formatSelectAllToolbarLabel(
+  state: SelectAllToolbarState,
+  selectedCount: number,
+  totalCount: number
+): string {
+  if (state === 'all') return `All ${totalCount} selected`;
+  if (state === 'partial') return `${selectedCount} selected`;
+  return `Select all ${totalCount}`;
 }
 
 /** Buyer-facing gift title, e.g. Gift 01 (keeps Gift #01 for admin/API labels). */
@@ -211,13 +235,13 @@ export function formatBuyerFacingGiftBadge(recipientNumber: number): string {
 
 export function getRecipientRowSubtitle(item: IndividualRecipientManagerItem): string {
   if (getBuyerFacingRecipientStatus(item) === 'published') {
-    return 'Personalised';
+    return 'eCard ready';
   }
-  return 'Ready for your personal touch';
+  return 'Ready for your message';
 }
 
-export function getRecipientRowActionLabel(item: IndividualRecipientManagerItem): string {
-  return getBuyerFacingRecipientStatus(item) === 'published' ? 'Edit →' : 'Personalise →';
+export function getRecipientRowActionLabel(_item: IndividualRecipientManagerItem): string {
+  return 'Edit eCard →';
 }
 
 export function getSelectedRecipientNumbers(

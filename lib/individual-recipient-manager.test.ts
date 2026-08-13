@@ -12,6 +12,7 @@ import {
   filterRecipientsByUiStatus,
   formatBuyerFacingGiftBadge,
   formatBuyerFacingGiftTitle,
+  formatSelectAllToolbarLabel,
   getBatchEditActionLabel,
   getBuyerFacingRecipientStatus,
   computeBuyerFacingStatusCounts,
@@ -21,6 +22,7 @@ import {
   getRecipientPersonalisationStatus,
   getRecipientRowActionLabel,
   getRecipientRowSubtitle,
+  getSelectAllToolbarState,
   getSelectedRecipientNumbers,
   selectAllRecipientIds,
   setSingleRecipientSelection,
@@ -141,10 +143,19 @@ describe('recipient labels and ordering', () => {
   });
 
   it('uses buyer-facing row subtitle and action labels', () => {
-    expect(getRecipientRowSubtitle(item(1))).toBe('Ready for your personal touch');
-    expect(getRecipientRowSubtitle(item(2, { status: 'published' }))).toBe('Personalised');
-    expect(getRecipientRowActionLabel(item(1))).toBe('Personalise →');
-    expect(getRecipientRowActionLabel(item(2, { status: 'published' }))).toBe('Edit →');
+    expect(getRecipientRowSubtitle(item(1))).toBe('Ready for your message');
+    expect(getRecipientRowSubtitle(item(2, { status: 'published' }))).toBe('eCard ready');
+    expect(getRecipientRowActionLabel(item(1))).toBe('Edit eCard →');
+    expect(getRecipientRowActionLabel(item(2, { status: 'published' }))).toBe('Edit eCard →');
+  });
+
+  it('formats select-all toolbar labels', () => {
+    expect(getSelectAllToolbarState(0, 15)).toBe('none');
+    expect(getSelectAllToolbarState(5, 15)).toBe('partial');
+    expect(getSelectAllToolbarState(15, 15)).toBe('all');
+    expect(formatSelectAllToolbarLabel('none', 0, 15)).toBe('Select all 15');
+    expect(formatSelectAllToolbarLabel('partial', 5, 15)).toBe('5 selected');
+    expect(formatSelectAllToolbarLabel('all', 15, 15)).toBe('All 15 selected');
   });
 });
 
@@ -187,10 +198,10 @@ describe('selection helpers', () => {
   it('batch edit labels use selected numbers', () => {
     const selected = new Set([items[0]!.id, items[2]!.id]);
     expect(getSelectedRecipientNumbers(selected, items)).toEqual([1, 3]);
-    expect(getBatchEditActionLabel(1)).toBe('Personalise selected →');
-    expect(getBatchEditActionLabel(2)).toBe('Personalise selected →');
-    expect(formatSelectedGiftCountLabel(1)).toBe('1 gift selected');
-    expect(formatSelectedGiftCountLabel(3)).toBe('3 gifts selected');
+    expect(getBatchEditActionLabel(1)).toBe('Edit selected eCard →');
+    expect(getBatchEditActionLabel(2)).toBe('Edit selected eCards →');
+    expect(formatSelectedGiftCountLabel(1)).toBe('1 selected');
+    expect(formatSelectedGiftCountLabel(3)).toBe('3 selected');
   });
 });
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { Check } from 'lucide-react';
 import {
   formatBuyerFacingGiftBadge,
   formatBuyerFacingGiftTitle,
@@ -33,7 +32,6 @@ export function RecipientManagerRow({
   const title = formatBuyerFacingGiftTitle(item.recipient_number);
   const badge = formatBuyerFacingGiftBadge(item.recipient_number);
   const uiStatus = getBuyerFacingRecipientStatus(item);
-  const isReady = uiStatus === 'published';
   const statusMeta = BUYER_STATUS_LABELS[uiStatus];
   const subtitle = getRecipientRowSubtitle(item);
   const actionLabel = getRecipientRowActionLabel(item);
@@ -42,10 +40,8 @@ export function RecipientManagerRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-3 px-3 py-4 transition-colors duration-200 motion-reduce:transition-none sm:gap-4 sm:px-5 sm:py-5',
-        checked
-          ? 'bg-rose-50/70'
-          : 'bg-transparent hover:bg-stone-50/80'
+        'group flex items-center gap-3 px-3 py-3.5 transition-colors duration-200 motion-reduce:transition-none sm:gap-4 sm:px-5 sm:py-4',
+        checked ? 'bg-rose-50/65' : 'bg-transparent hover:bg-stone-50/80'
       )}
     >
       <Checkbox
@@ -56,20 +52,21 @@ export function RecipientManagerRow({
         className={cn(
           'h-5 w-5 rounded-[5px] border-stone-300 shadow-none transition-colors duration-200 motion-reduce:transition-none',
           'data-[state=checked]:border-rose-500 data-[state=checked]:bg-rose-500 data-[state=checked]:text-white',
+          'data-[state=indeterminate]:border-rose-500 data-[state=indeterminate]:bg-rose-500 data-[state=indeterminate]:text-white',
           'focus-visible:ring-rose-400/40'
         )}
       />
 
       <div
         className={cn(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-medium tabular-nums transition-colors duration-200 motion-reduce:transition-none',
-          isReady
-            ? 'bg-rose-100/80 text-rose-700'
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[13px] font-medium tabular-nums transition-colors duration-200 motion-reduce:transition-none sm:h-10 sm:w-10 sm:text-sm',
+          checked
+            ? 'bg-rose-100/90 text-rose-700'
             : 'bg-stone-100 text-stone-600'
         )}
         aria-hidden="true"
       >
-        {isReady ? <Check className="h-4 w-4 stroke-[2.5]" /> : badge}
+        {badge}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -90,9 +87,9 @@ export function RecipientManagerRow({
       <button
         type="button"
         onClick={onEdit}
-        aria-label={`${actionLabel.replace(' →', '')} ${title}`}
+        aria-label={`Edit eCard for ${title}`}
         className={cn(
-          'inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-medium text-rose-600',
+          'inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-2.5 text-sm font-medium text-rose-600',
           'transition-colors duration-200 motion-reduce:transition-none',
           'hover:bg-rose-50 hover:text-rose-700',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2'

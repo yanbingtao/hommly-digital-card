@@ -106,18 +106,18 @@ describe('buyer-facing recipient manager presentation', () => {
     ]);
   });
 
-  it('uses Personalise selected for one selection', () => {
-    expect(getBatchEditActionLabel(1)).toBe('Personalise selected →');
+  it('uses Edit selected eCard for one selection', () => {
+    expect(getBatchEditActionLabel(1)).toBe('Edit selected eCard →');
   });
 
-  it('uses Personalise selected for multiple selections', () => {
-    expect(getBatchEditActionLabel(2)).toBe('Personalise selected →');
-    expect(getBatchEditActionLabel(37)).toBe('Personalise selected →');
+  it('uses Edit selected eCards for multiple selections', () => {
+    expect(getBatchEditActionLabel(2)).toBe('Edit selected eCards →');
+    expect(getBatchEditActionLabel(37)).toBe('Edit selected eCards →');
   });
 
   it('formats selected gift count grammar', () => {
-    expect(formatSelectedGiftCountLabel(1)).toBe('1 gift selected');
-    expect(formatSelectedGiftCountLabel(3)).toBe('3 gifts selected');
+    expect(formatSelectedGiftCountLabel(1)).toBe('1 selected');
+    expect(formatSelectedGiftCountLabel(3)).toBe('3 selected');
   });
 });
 
@@ -167,10 +167,13 @@ describe('Individual Recipient Manager UI guards', () => {
     expect(managerSource).toMatch(/To personalise/);
     expect(managerSource).toMatch(/getBatchEditActionLabel/);
     expect(managerSource).toMatch(/batchEditLabel/);
-    expect(labelSource).toMatch(/Personalise selected/);
+    expect(managerSource).toMatch(/BrandLogo/);
+    expect(managerSource).toMatch(/gift-list-scroll/);
+    expect(managerSource).toMatch(/selectAllRecipientIds\(sortedRecipients\)/);
+    expect(labelSource).toMatch(/Edit selected eCard/);
   });
 
-  it('row-level Edit remains for ready gifts', () => {
+  it('row-level Edit eCard remains for every gift', () => {
     const rowSource = fs.readFileSync(
       path.join(ROOT, 'components/individual/RecipientManagerRow.tsx'),
       'utf8'
@@ -180,8 +183,8 @@ describe('Individual Recipient Manager UI guards', () => {
       'utf8'
     );
     expect(rowSource).toMatch(/getRecipientRowActionLabel/);
-    expect(labelSource).toMatch(/Edit →/);
-    expect(labelSource).toMatch(/Personalise →/);
+    expect(labelSource).toMatch(/Edit eCard →/);
+    expect(labelSource).not.toMatch(/Personalise →/);
     expect(rowSource).not.toMatch(/\bDraft\b/);
   });
 });
