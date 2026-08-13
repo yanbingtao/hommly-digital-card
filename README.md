@@ -215,4 +215,6 @@ Until the Shopee automation repo is updated, all production calls omit `mode` an
 
 ## Deployment
 
-The project includes a `netlify.toml` for [Netlify](https://netlify.com). Set the Supabase environment variables, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` in your hosting dashboard before deploying.
+Production is deployed on [Vercel](https://vercel.com). Set Supabase keys, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `AUTOMATION_SECRET` in the Vercel project environment variables.
+
+Daily expired-photo cleanup is scheduled via Vercel Cron (`vercel.json` → `/api/internal/photo-cleanup` at `0 3 * * *` UTC). Set `CRON_SECRET` (Production) so Vercel can authenticate cron invocations with `Authorization: Bearer <CRON_SECRET>`.

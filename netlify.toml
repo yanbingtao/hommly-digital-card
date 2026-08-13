@@ -4,9 +4,3 @@ publish = ".next"
 
 [[plugins]]
 package = "@netlify/plugin-nextjs"
-
-[functions]
-directory = "netlify/functions"
-
-# Daily photo / orphan cleanup is defined on
-# netlify/functions/scheduled-photo-cleanup.ts (03:00 UTC).

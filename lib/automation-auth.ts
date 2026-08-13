@@ -1,9 +1,15 @@
 import crypto from 'crypto';
 
 export const AUTOMATION_SECRET_ENV = 'AUTOMATION_SECRET';
+/** Vercel Cron Jobs send this as `Authorization: Bearer <CRON_SECRET>`. */
+export const CRON_SECRET_ENV = 'CRON_SECRET';
 
 export function getConfiguredAutomationSecret(): string {
   return process.env[AUTOMATION_SECRET_ENV]?.trim() || '';
+}
+
+export function getConfiguredCronSecret(): string {
+  return process.env[CRON_SECRET_ENV]?.trim() || '';
 }
 
 export function parseBearerToken(authorizationHeader: string | null | undefined): string | null {
@@ -38,6 +44,28 @@ export function verifyAutomationRequest(authorizationHeader: string | null | und
   const expected = getConfiguredAutomationSecret();
   if (!expected) {
     return { ok: false, error: 'automation secret is not configured' };
+  }
+  const provided = parseBearerToken(authorizationHeader);
+  if (!provided) {
+    return { ok: false, error: 'missing bearer token' };
+  }
+  if (!secretsMatch(provided, expected)) {
+    return { ok: false, error: 'invalid bearer token' };
+  }
+  return { ok: true };
+}
+
+/**
+ * Authenticates Vercel Cron (and manual) invocations of scheduled internal routes.
+ * Expects `Authorization: Bearer <CRON_SECRET>`.
+ */
+export function verifyCronRequest(authorizationHeader: string | null | undefined): {
+  ok: boolean;
+  error?: string;
+} {
+  const expected = getConfiguredCronSecret();
+  if (!expected) {
+    return { ok: false, error: 'cron secret is not configured' };
   }
   const provided = parseBearerToken(authorizationHeader);
   if (!provided) {
