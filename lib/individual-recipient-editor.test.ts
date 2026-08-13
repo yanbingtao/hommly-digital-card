@@ -564,6 +564,24 @@ describe('publishIndividualRecipientsCore', () => {
     expect(disabled.ok).toBe(true);
     expect(supabase._state.recipients[0]!.view_pin_hash).toBeNull();
     expect(supabase._state.recipients[0]!.view_pin_enabled).toBe(false);
+
+    const reenabled = await publishIndividualRecipientsCore(supabase as never, {
+      editToken: 'edit-ind-token',
+      recipientIds: ['recipient-1'],
+      content: {
+        message: 'Hello',
+        theme: 'thank_you',
+        show_sender_links: false,
+        sender_links: null,
+        view_pin_enabled: true,
+        view_pin: '567890',
+        photo_enabled: false,
+      },
+    });
+    expect(reenabled.ok).toBe(true);
+    expect(supabase._state.recipients[0]!.view_pin_enabled).toBe(true);
+    expect(supabase._state.recipients[0]!.view_pin_hash).toBeTruthy();
+    expect(supabase._state.recipients[0]!.view_pin_hash).not.toBe(hash);
   });
 
   it('preserves view_token and recipient_number; clears photo on full overwrite with no photo', async () => {
@@ -866,6 +884,89 @@ describe('resolveBulkViewPinFields', () => {
       { view_pin_enabled: false, view_pin_hash: null },
     ]);
     expect(result.error).toMatch(/new PIN/i);
+  });
+
+  it('explicitly disables PIN and clears hash even when a PIN string is still present', () => {
+    const result = resolveBulkViewPinFields(false, '1234', [
+      { view_pin_enabled: true, view_pin_hash: 'salt:hash' },
+    ]);
+    expect(result.error).toBeNull();
+    expect(result.view_pin_enabled).toBe(false);
+    expect(result.view_pin_hash).toBeNull();
+  });
+
+  it('does not validate PIN format when protection is disabled', () => {
+    const result = resolveBulkViewPinFields(false, '12', [
+      { view_pin_enabled: true, view_pin_hash: 'salt:hash' },
+    ]);
+    expect(result.error).toBeNull();
+    expect(result.view_pin_enabled).toBe(false);
+    expect(result.view_pin_hash).toBeNull();
+  });
+
+  it('requires a fresh PIN after protection was removed', () => {
+    const result = resolveBulkViewPinFields(true, '', [
+      { view_pin_enabled: false, view_pin_hash: null },
+    ]);
+    expect(result.error).toMatch(/enter a PIN/i);
+    expect(result.view_pin_enabled).toBe(true);
+    expect(result.view_pin_hash).toBeNull();
+  });
+});
+
+describe('Viewing PIN editor toggle persistence guards', () => {
+  it('CardViewPinSection does not double-call pin clear (stale setState race)', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/card/CardViewPinSection.tsx'),
+      'utf8'
+    );
+    expect(source).toMatch(/onEnabledChange\(checked\)/);
+    expect(source).not.toMatch(/if\s*\(\s*!checked\s*\)\s*onPinChange/);
+  });
+
+  it('IndividualRecipientEditor uses functional setForm for PIN enable/disable', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/individual/IndividualRecipientEditor.tsx'),
+      'utf8'
+    );
+    expect(source).toContain('setForm((current) =>');
+    expect(source).toContain("view_pin: view_pin_enabled ? current.view_pin : ''");
+  });
+
+  it('SharedCardEditor uses functional setForm for PIN enable/disable', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/card/SharedCardEditor.tsx'),
+      'utf8'
+    );
+    expect(source).toContain('setForm((current) => ({');
+    expect(source).toContain("view_pin: view_pin_enabled ? current.view_pin : ''");
+  });
+
+  it('prefill loads saved PIN protection as ON and cleared protection as OFF', () => {
+    const protectedForm = prefillToFormState(
+      buildIndividualEditorPrefill([
+        toIndividualRecipientEditorItem(
+          recipient(1, { view_pin_enabled: true, view_pin_hash: hashViewPin('1234') })
+        ),
+      ]),
+      [
+        toIndividualRecipientEditorItem(
+          recipient(1, { view_pin_enabled: true, view_pin_hash: hashViewPin('1234') })
+        ),
+      ]
+    );
+    expect(protectedForm.view_pin_enabled).toBe(true);
+    expect(protectedForm.view_pin_is_set).toBe(true);
+    expect(protectedForm.view_pin).toBe('');
+
+    const clearedForm = prefillToFormState(
+      buildIndividualEditorPrefill([
+        toIndividualRecipientEditorItem(recipient(1, { view_pin_enabled: false, view_pin_hash: null })),
+      ]),
+      [toIndividualRecipientEditorItem(recipient(1, { view_pin_enabled: false, view_pin_hash: null }))]
+    );
+    expect(clearedForm.view_pin_enabled).toBe(false);
+    expect(clearedForm.view_pin_is_set).toBe(false);
   });
 });
 

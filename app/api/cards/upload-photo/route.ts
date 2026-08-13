@@ -4,14 +4,18 @@ import {
   assertCardEditable,
   findCardByEditToken,
 } from '@/lib/card-photo-access';
-import { validateImageBuffer } from '@/lib/card-photo';
+import { validateProcessedImageBuffer } from '@/lib/card-photo';
+import { assertAllowedImageBinary } from '@/lib/image-signature';
 import {
   createPhotoSignedUrl,
   deleteCardPhoto,
-  uploadCardPhoto,
+  promoteSharedCardPhotoCandidate,
+  uploadSharedCardPhotoCandidate,
 } from '@/lib/card-photo-storage';
 
 export async function POST(request: Request) {
+  let candidatePath: string | null = null;
+
   try {
     const formData = await request.formData();
     const editToken = String(formData.get('edit_token') ?? '').trim();
@@ -35,19 +39,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: editableError }, { status: 403 });
     }
 
-    const validation = validateImageBuffer(file.type, file.size);
+    const validation = validateProcessedImageBuffer(file.type, file.size);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
     const buffer = await file.arrayBuffer();
-    const mimeType = file.type === 'image/webp' ? 'image/webp' : file.type;
-
-    if (card.photo_path) {
-      await deleteCardPhoto(card.photo_path);
+    const signature = assertAllowedImageBinary(buffer, file.type);
+    if (!signature.ok) {
+      return NextResponse.json({ error: signature.error }, { status: 400 });
     }
 
-    const photoPath = await uploadCardPhoto(card.id, buffer, mimeType);
+    const mimeType = signature.mime;
+
+    // Upload to a temporary object first so a failed replacement cannot destroy the old photo.
+    candidatePath = await uploadSharedCardPhotoCandidate(card.id, buffer, mimeType);
+    const photoPath = await promoteSharedCardPhotoCandidate(card.id, candidatePath, mimeType);
+    candidatePath = null;
+
     const uploadedAt = new Date().toISOString();
 
     const supabase = getSupabase();
@@ -79,6 +88,9 @@ export async function POST(request: Request) {
       previewUrl,
     });
   } catch (err: unknown) {
+    if (candidatePath) {
+      await deleteCardPhoto(candidatePath);
+    }
     return NextResponse.json(
       { error: getConnectionErrorMessage(err) },
       { status: 500 }

@@ -412,7 +412,7 @@ export async function reactivateCard(
 }
 
 export async function runExpiredPhotoCleanup(): Promise<{
-  result: { scanned: number; cleaned: number; errors: string[] } | null;
+  result: Awaited<ReturnType<typeof cleanupExpiredCardPhotos>> | null;
   error: string | null;
 }> {
   try {

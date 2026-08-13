@@ -55,8 +55,9 @@ export function CardViewPinSection({
           id={enabledId}
           checked={enabled}
           onCheckedChange={(checked) => {
+            // Parent owns clearing the PIN when disabling. Calling onPinChange here
+            // as a second setState can race and overwrite view_pin_enabled back to true.
             onEnabledChange(checked);
-            if (!checked) onPinChange('');
           }}
           className="shrink-0 data-[state=checked]:bg-rose-500"
         />

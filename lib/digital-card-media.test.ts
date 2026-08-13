@@ -468,9 +468,11 @@ describe('uploadIndividualPhotoMediaCore lifecycle', () => {
 
     const result = await uploadIndividualPhotoMediaCore(supabase as never, {
       digitalCardId: 'card-ind-1',
-      buffer: new Uint8Array([1, 2, 3]),
+      buffer: new Uint8Array([
+        0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 1, 2, 3,
+      ]),
       mimeType: 'image/webp',
-      sizeBytes: 3,
+      sizeBytes: 15,
       recipientIds: ['recipient-1'],
     });
 

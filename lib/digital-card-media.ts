@@ -3,9 +3,10 @@ import {
   CARD_PHOTOS_BUCKET,
   mimeTypeToExtension,
   normalizeIndividualMediaStoragePath,
-  validateImageBuffer,
+  validateProcessedImageBuffer,
 } from './card-photo';
-import { deleteCardPhoto } from './card-photo-storage';
+import { assertAllowedImageBinary } from './image-signature';
+import { deleteCardPhoto, logPhotoCleanupIssue } from './card-photo-storage';
 import type { DigitalCardMedia, DigitalCardRecipient } from './types';
 
 export const DIGITAL_CARD_MEDIA_SELECT =
@@ -177,10 +178,23 @@ export async function deleteDigitalCardMediaIfUnreferenced(
     return { deleted: false, error: null };
   }
 
-  await deleteCardPhoto(media.storage_path);
+  const storageDelete = await deleteCardPhoto(media.storage_path);
+  if (storageDelete && storageDelete.ok === false) {
+    logPhotoCleanupIssue('unreferenced-media-storage', {
+      mediaId,
+      path: media.storage_path,
+      error: storageDelete.error,
+    });
+    return { deleted: false, error: storageDelete.error };
+  }
 
   const { error: deleteError } = await supabase.from('digital_card_media').delete().eq('id', mediaId);
   if (deleteError) {
+    logPhotoCleanupIssue('unreferenced-media-row', {
+      mediaId,
+      path: media.storage_path,
+      error: deleteError.message,
+    });
     return { deleted: false, error: deleteError.message };
   }
 
@@ -334,11 +348,17 @@ export async function uploadIndividualPhotoMediaCore(
   | { ok: true; mediaId: string; updatedCount: number; cleanedMediaIds: string[] }
   | { ok: false; error: string }
 > {
-  const validated = validateImageBuffer(input.mimeType, input.sizeBytes);
+  const validated = validateProcessedImageBuffer(input.mimeType, input.sizeBytes);
   if (!validated.valid) {
     return { ok: false, error: validated.error };
   }
 
+  const signature = assertAllowedImageBinary(input.buffer, input.mimeType);
+  if (!signature.ok) {
+    return { ok: false, error: signature.error };
+  }
+
+  const mimeType = signature.mime;
   const recipientIds = normalizeUniqueRecipientIds(input.recipientIds);
   if (recipientIds.length === 0) {
     return { ok: false, error: 'Select at least one recipient.' };
@@ -347,13 +367,13 @@ export async function uploadIndividualPhotoMediaCore(
   const mediaId = crypto.randomUUID();
   let storagePath: string;
   try {
-    storagePath = normalizeIndividualMediaStoragePath(input.digitalCardId, mediaId, input.mimeType);
+    storagePath = normalizeIndividualMediaStoragePath(input.digitalCardId, mediaId, mimeType);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unsupported image type.';
     return { ok: false, error: message };
   }
 
-  const uploadResult = await uploadMediaBinary(storagePath, input.buffer, input.mimeType);
+  const uploadResult = await uploadMediaBinary(storagePath, input.buffer, mimeType);
   if (!uploadResult.ok) {
     return { ok: false, error: uploadResult.error };
   }
@@ -363,7 +383,7 @@ export async function uploadIndividualPhotoMediaCore(
     digital_card_id: input.digitalCardId,
     storage_path: storagePath,
     original_name: input.originalName ?? null,
-    mime_type: input.mimeType,
+    mime_type: mimeType,
     size_bytes: input.sizeBytes,
   });
 

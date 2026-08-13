@@ -5,14 +5,37 @@ import {
   normalizeStoragePath,
 } from './card-photo';
 
-export async function deleteCardPhoto(photoPath: string | null | undefined): Promise<void> {
-  if (!photoPath) return;
+export type StorageDeleteResult =
+  | { ok: true; path: string; alreadyMissing?: boolean }
+  | { ok: false; path: string; error: string };
+
+export function logPhotoCleanupIssue(
+  scope: string,
+  details: Record<string, unknown>
+): void {
+  console.error(`[photo-cleanup:${scope}]`, details);
+}
+
+export async function deleteCardPhoto(
+  photoPath: string | null | undefined
+): Promise<StorageDeleteResult> {
+  if (!photoPath) {
+    return { ok: true, path: '', alreadyMissing: true };
+  }
 
   const admin = getSupabaseAdmin();
   const { error } = await admin.storage.from(CARD_PHOTOS_BUCKET).remove([photoPath]);
   if (error) {
-    console.error('[deleteCardPhoto] Storage error:', error.message);
+    const message = error.message || 'Storage delete failed';
+    // Idempotent: missing objects are treated as cleaned.
+    if (/not found|does not exist|No such file/i.test(message)) {
+      return { ok: true, path: photoPath, alreadyMissing: true };
+    }
+    logPhotoCleanupIssue('deleteCardPhoto', { path: photoPath, error: message });
+    return { ok: false, path: photoPath, error: message };
   }
+
+  return { ok: true, path: photoPath };
 }
 
 export async function uploadCardPhoto(
@@ -35,6 +58,65 @@ export async function uploadCardPhoto(
   }
 
   return path;
+}
+
+/**
+ * Upload shared-card photo to a temporary object first so a failed upload
+ * cannot destroy the previous valid fixed-path photo.
+ */
+export async function uploadSharedCardPhotoCandidate(
+  cardId: string,
+  fileBuffer: ArrayBuffer | Buffer,
+  contentType: string
+): Promise<string> {
+  const extension = contentType === 'image/png' ? 'png' : contentType === 'image/jpeg' ? 'jpg' : 'webp';
+  const candidatePath = `cards/${cardId}/photo.next.${crypto.randomUUID()}.${extension}`;
+  const admin = getSupabaseAdmin();
+  const body = fileBuffer instanceof ArrayBuffer ? new Uint8Array(fileBuffer) : fileBuffer;
+
+  const { error } = await admin.storage.from(CARD_PHOTOS_BUCKET).upload(candidatePath, body, {
+    upsert: false,
+    contentType,
+    cacheControl: '3600',
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return candidatePath;
+}
+
+export async function promoteSharedCardPhotoCandidate(
+  cardId: string,
+  candidatePath: string,
+  contentType: string
+): Promise<string> {
+  const finalPath = normalizeStoragePath(cardId);
+  const admin = getSupabaseAdmin();
+
+  const { data: blob, error: downloadError } = await admin.storage
+    .from(CARD_PHOTOS_BUCKET)
+    .download(candidatePath);
+
+  if (downloadError || !blob) {
+    throw new Error(downloadError?.message ?? 'Failed to read uploaded photo.');
+  }
+
+  const buffer = await blob.arrayBuffer();
+  const { error: uploadError } = await admin.storage.from(CARD_PHOTOS_BUCKET).upload(finalPath, new Uint8Array(buffer), {
+    upsert: true,
+    contentType,
+    cacheControl: '3600',
+  });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  // Best-effort cleanup of temporary candidate.
+  await deleteCardPhoto(candidatePath);
+  return finalPath;
 }
 
 export async function createPhotoSignedUrl(

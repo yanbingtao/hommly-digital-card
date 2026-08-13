@@ -20,6 +20,27 @@ import type { CardWithOrder, DigitalCardMedia, DigitalCardRecipient } from './ty
 
 const ROOT = path.join(__dirname, '..');
 
+/** Minimal valid WebP magic-byte payload for upload validation tests. */
+function fakeWebpBytes(seed = 1): Uint8Array {
+  return new Uint8Array([
+    0x52,
+    0x49,
+    0x46,
+    0x46,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x57,
+    0x45,
+    0x42,
+    0x50,
+    seed,
+    seed + 1,
+    seed + 2,
+  ]);
+}
+
 function recipient(
   number: number,
   overrides?: Partial<DigitalCardRecipient>
@@ -401,10 +422,10 @@ describe('applyIndividualRecipientPhotoOnPublish', () => {
       photo: {
         enabled: true,
         source: 'new_upload',
-        buffer: new Uint8Array([1, 2, 3]),
+        buffer: fakeWebpBytes(1),
         mimeType: 'image/webp',
         originalName: 'photo.webp',
-        sizeBytes: 3,
+        sizeBytes: 15,
       },
       recipientsBefore: supabase._state.recipients,
     });
@@ -458,9 +479,9 @@ describe('applyIndividualRecipientPhotoOnPublish', () => {
       photo: {
         enabled: true,
         source: 'new_upload',
-        buffer: new Uint8Array([4, 5, 6]),
+        buffer: fakeWebpBytes(4),
         mimeType: 'image/webp',
-        sizeBytes: 3,
+        sizeBytes: 15,
       },
       recipientsBefore: supabase._state.recipients,
     });
@@ -556,10 +577,10 @@ describe('publishIndividualRecipientsCore full overwrite', () => {
         view_pin_enabled: false,
         view_pin: '',
         photo_enabled: true,
-        photo_file_base64: Buffer.from([1, 2, 3]).toString('base64'),
+        photo_file_base64: Buffer.from(fakeWebpBytes(9)).toString('base64'),
         photo_mime_type: 'image/webp',
         photo_original_name: 'photo.webp',
-        photo_size_bytes: 3,
+        photo_size_bytes: 15,
       },
     });
 

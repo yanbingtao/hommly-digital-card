@@ -318,13 +318,13 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
               pin={form.view_pin}
               pinIsSet={form.view_pin_is_set}
               onEnabledChange={(view_pin_enabled) =>
-                setForm({
-                  ...form,
+                setForm((current) => ({
+                  ...current,
                   view_pin_enabled,
-                  view_pin: view_pin_enabled ? form.view_pin : '',
-                })
+                  view_pin: view_pin_enabled ? current.view_pin : '',
+                }))
               }
-              onPinChange={(view_pin) => setForm({ ...form, view_pin })}
+              onPinChange={(view_pin) => setForm((current) => ({ ...current, view_pin }))}
             />
 
             <Separator />

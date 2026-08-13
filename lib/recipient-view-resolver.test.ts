@@ -306,6 +306,21 @@ describe('mode-aware PIN and photo sources', () => {
     expect((await verifyViewerPinForResolved(resolved, '5678')).allowed).toBe(false);
   });
 
+  it('skips PIN gate when Viewing PIN is disabled on the recipient', async () => {
+    const resolved = {
+      mode: 'individual' as const,
+      card: individualParent(),
+      recipient: recipient(1, 'indRecipTok1', {
+        view_pin_enabled: false,
+        view_pin_hash: null,
+      }),
+      photo_media: null,
+    };
+    expect(getRecipientViewPinSource(resolved).view_pin_enabled).toBe(false);
+    expect((await verifyViewerPinForResolved(resolved, null)).allowed).toBe(true);
+    expect((await verifyViewerPinForResolved(resolved, undefined)).allowed).toBe(true);
+  });
+
   it('uses parent PIN hash for Shared mode', async () => {
     const hash = hashViewPin('4321');
     const resolved = {

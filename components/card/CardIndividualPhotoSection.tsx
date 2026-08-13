@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ImageIcon, ImagePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { compressImageBeforeUpload } from '@/lib/compress-image';
+import {
+  assertProcessedImageWithinLimit,
+  compressImageBeforeUpload,
+  PHOTO_PROCESS_FAILED_MESSAGE,
+} from '@/lib/compress-image';
 import { validateImageFile } from '@/lib/card-photo';
 import { getIndividualRecipientPhotoPreview } from '@/lib/individual-recipient-editor-actions';
 import type { IndividualPhotoMode } from '@/lib/individual-recipient-editor-types';
@@ -39,6 +43,7 @@ export function CardIndividualPhotoSection({
 }: CardIndividualPhotoSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [existingPreviewUrl, setExistingPreviewUrl] = useState<string | null>(null);
   const isSingle = recipientIds.length === 1;
   const showPhotoPicker = photoMode === 'one_photo';
@@ -96,7 +101,7 @@ export function CardIndividualPhotoSection({
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || disabled) return;
+    if (!file || disabled || preparingPhoto) return;
 
     const validation = validateImageFile(file);
     if (!validation.valid) {
@@ -104,15 +109,21 @@ export function CardIndividualPhotoSection({
       return;
     }
 
+    setPreparingPhoto(true);
     try {
       const compressed = await compressImageBeforeUpload(file);
+      assertProcessedImageWithinLimit(compressed.blob.size);
       const previewObjectUrl = URL.createObjectURL(compressed.blob);
       onChoosePhoto(
         new File([compressed.blob], compressed.fileName, { type: compressed.mimeType }),
         previewObjectUrl
       );
-    } catch {
-      toast.error('Could not prepare this image. Please try another photo.');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message ? err.message : PHOTO_PROCESS_FAILED_MESSAGE;
+      toast.error(message);
+    } finally {
+      setPreparingPhoto(false);
     }
   };
 
@@ -196,12 +207,17 @@ export function CardIndividualPhotoSection({
             <ul className="space-y-0.5 text-[11px] text-stone-500">
               <li>
                 {isSingle
-                  ? 'JPG, PNG, or WebP · Max 5MB before compression'
-                  : 'One photo shared across selected gifts · JPG, PNG, or WebP · Max 5MB before compression'}
+                  ? 'JPG, PNG, or WebP · Max 5MB original · optimised under 1MB'
+                  : 'One photo shared across selected gifts · JPG, PNG, or WebP · Max 5MB original · optimised under 1MB'}
               </li>
             </ul>
 
-            {loadingPreview && !previewUrl ? (
+            {preparingPhoto ? (
+              <div className="flex min-h-[9rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-200 bg-white">
+                <Loader2 className="h-5 w-5 animate-spin text-stone-300" />
+                <p className="text-sm text-stone-500">Preparing your photo…</p>
+              </div>
+            ) : loadingPreview && !previewUrl ? (
               <div className="flex min-h-[9rem] items-center justify-center rounded-xl border border-dashed border-stone-200 bg-white">
                 <Loader2 className="h-5 w-5 animate-spin text-stone-300" />
               </div>
@@ -236,7 +252,7 @@ export function CardIndividualPhotoSection({
               type="file"
               accept="image/jpeg,image/png,image/webp"
               className="hidden"
-              disabled={disabled}
+              disabled={disabled || preparingPhoto}
               onChange={(event) => void handleFileChange(event)}
             />
 
@@ -244,7 +260,7 @@ export function CardIndividualPhotoSection({
               type="button"
               variant="outline"
               className="min-h-11 w-full border-stone-200 bg-white hover:bg-stone-50"
-              disabled={disabled}
+              disabled={disabled || preparingPhoto}
               onClick={() => inputRef.current?.click()}
             >
               <ImagePlus className="mr-2 h-4 w-4" />

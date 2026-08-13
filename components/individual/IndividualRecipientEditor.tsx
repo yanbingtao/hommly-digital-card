@@ -334,13 +334,20 @@ export function IndividualRecipientEditor({
                 pinIsSet={form.view_pin_is_set}
                 mixed={prefill.view_pin_enabled.kind === 'mixed'}
                 onEnabledChange={(view_pin_enabled) =>
-                  setForm({
-                    ...form,
-                    view_pin_enabled,
-                    view_pin: view_pin_enabled ? form.view_pin : '',
-                  })
+                  setForm((current) =>
+                    current
+                      ? {
+                          ...current,
+                          view_pin_enabled,
+                          // Explicit OFF clears local PIN input and validation surface.
+                          view_pin: view_pin_enabled ? current.view_pin : '',
+                        }
+                      : current
+                  )
                 }
-                onPinChange={(view_pin) => setForm({ ...form, view_pin })}
+                onPinChange={(view_pin) =>
+                  setForm((current) => (current ? { ...current, view_pin } : current))
+                }
               />
             </div>
           </section>

@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { compressImageBeforeUpload } from '@/lib/compress-image';
+import {
+  assertProcessedImageWithinLimit,
+  compressImageBeforeUpload,
+  PHOTO_PROCESS_FAILED_MESSAGE,
+} from '@/lib/compress-image';
 import { hasCardPhoto, validateImageFile } from '@/lib/card-photo';
 import { CardWithOrder } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -30,6 +34,7 @@ export function CardPhotoUpload({
 }: CardPhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -71,9 +76,13 @@ export function CardPhotoUpload({
       return;
     }
 
-    setUploading(true);
+    setPreparingPhoto(true);
     try {
       const compressed = await compressImageBeforeUpload(file);
+      assertProcessedImageWithinLimit(compressed.blob.size);
+      setPreparingPhoto(false);
+      setUploading(true);
+
       const formData = new FormData();
       formData.append('edit_token', editToken);
       formData.append(
@@ -101,9 +110,12 @@ export function CardPhotoUpload({
       }
       setPreviewUrl(data.previewUrl ?? null);
       toast.success('Photo uploaded');
-    } catch {
-      toast.error('Failed to upload photo');
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message ? err.message : PHOTO_PROCESS_FAILED_MESSAGE;
+      toast.error(message);
     } finally {
+      setPreparingPhoto(false);
       setUploading(false);
     }
   };
@@ -167,9 +179,14 @@ export function CardPhotoUpload({
       {enabled && (
       <div className="space-y-3 border-t border-rose-100 bg-white/70 px-4 py-4">
         <ul className="space-y-0.5 text-[11px] text-rose-800/55">
-          <li>One photo only · JPG, PNG, or WebP · Max 5MB before compression</li>
+          <li>One photo only · JPG, PNG, or WebP · Max 5MB original · optimised under 1MB</li>
         </ul>
-        {previewUrl ? (
+        {preparingPhoto ? (
+          <div className="flex min-h-[9rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200/80 bg-rose-50/40">
+            <Loader2 className="h-5 w-5 animate-spin text-rose-300" />
+            <p className="text-sm text-stone-600">Preparing your photo…</p>
+          </div>
+        ) : previewUrl ? (
           <div className="space-y-3">
             <div className="overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-200/70">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -200,7 +217,7 @@ export function CardPhotoUpload({
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
-          disabled={disabled || uploading || removing}
+          disabled={disabled || uploading || preparingPhoto || removing}
           onChange={(event) => void handleFileChange(event)}
         />
 
@@ -209,10 +226,14 @@ export function CardPhotoUpload({
             type="button"
             variant="outline"
             className="flex-1 border-rose-200 bg-white hover:bg-rose-50"
-            disabled={disabled || uploading || removing}
+            disabled={disabled || uploading || preparingPhoto || removing}
             onClick={() => inputRef.current?.click()}
           >
-            {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+            {uploading || preparingPhoto ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ImagePlus className="mr-2 h-4 w-4" />
+            )}
             {hasCardPhoto(card) ? 'Replace photo' : 'Upload photo'}
           </Button>
           {hasCardPhoto(card) && (
@@ -220,7 +241,7 @@ export function CardPhotoUpload({
               type="button"
               variant="outline"
               className="flex-1 border-stone-200 text-stone-600 hover:bg-stone-50"
-              disabled={disabled || uploading || removing}
+              disabled={disabled || uploading || preparingPhoto || removing}
               onClick={() => void handleRemove()}
             >
               {removing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}

@@ -1,6 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { hasRecipientPhoto, normalizeIndividualMediaStoragePath, validateImageBuffer } from './card-photo';
-import { createPhotoSignedUrl, deleteCardPhoto } from './card-photo-storage';
+import {
+  hasRecipientPhoto,
+  normalizeIndividualMediaStoragePath,
+  validateProcessedImageBuffer,
+} from './card-photo';
+import { assertAllowedImageBinary } from './image-signature';
+import {
+  createPhotoSignedUrl,
+  deleteCardPhoto,
+  logPhotoCleanupIssue,
+} from './card-photo-storage';
 import {
   assignPhotoMediaToRecipients,
   cleanupUnreferencedMediaIds,
@@ -115,21 +124,27 @@ export async function createUploadedIndividualPhotoMedia(
     sizeBytes: number;
   }
 ): Promise<{ ok: true; mediaId: string; storagePath: string } | { ok: false; error: string }> {
-  const validated = validateImageBuffer(input.mimeType, input.sizeBytes);
+  const validated = validateProcessedImageBuffer(input.mimeType, input.sizeBytes);
   if (!validated.valid) {
     return { ok: false, error: validated.error };
   }
 
+  const signature = assertAllowedImageBinary(input.buffer, input.mimeType);
+  if (!signature.ok) {
+    return { ok: false, error: signature.error };
+  }
+
+  const mimeType = signature.mime;
   const mediaId = crypto.randomUUID();
   let storagePath: string;
   try {
-    storagePath = normalizeIndividualMediaStoragePath(input.digitalCardId, mediaId, input.mimeType);
+    storagePath = normalizeIndividualMediaStoragePath(input.digitalCardId, mediaId, mimeType);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unsupported image type.';
     return { ok: false, error: message };
   }
 
-  const uploadResult = await uploadMediaBinary(storagePath, input.buffer, input.mimeType);
+  const uploadResult = await uploadMediaBinary(storagePath, input.buffer, mimeType);
   if (!uploadResult.ok) {
     return { ok: false, error: uploadResult.error };
   }
@@ -139,7 +154,7 @@ export async function createUploadedIndividualPhotoMedia(
     digital_card_id: input.digitalCardId,
     storage_path: storagePath,
     original_name: input.originalName ?? null,
-    mime_type: input.mimeType,
+    mime_type: mimeType,
     size_bytes: input.sizeBytes,
   });
 
@@ -173,11 +188,10 @@ function collectLegacyPhotoPaths(recipients: DigitalCardRecipient[]): string[] {
 async function cleanupLegacyPhotoPaths(paths: string[]): Promise<string[]> {
   const warnings: string[] = [];
   for (const path of paths) {
-    try {
-      await deleteCardPhoto(path);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown legacy cleanup error';
-      warnings.push(message);
+    const result = await deleteCardPhoto(path);
+    if (result && result.ok === false) {
+      logPhotoCleanupIssue('legacy-path', { path: result.path, error: result.error });
+      warnings.push(result.error);
     }
   }
   return warnings;
@@ -277,6 +291,14 @@ export async function applyIndividualRecipientPhotoOnPublish(
         ? [...errors, ...legacyWarnings].join('; ')
         : null;
 
+    if (cleanupWarning) {
+      logPhotoCleanupIssue('clear-unreferenced', {
+        digitalCardId,
+        recipientIds,
+        cleanupWarning,
+      });
+    }
+
     if (process.env.NODE_ENV !== 'production' && cleaned.length > 0) {
       console.info('[Individual photo publish] cleaned unreferenced media after clear', {
         count: cleaned.length,
@@ -326,6 +348,14 @@ export async function applyIndividualRecipientPhotoOnPublish(
       errors.length > 0 || legacyWarnings.length > 0
         ? [...errors, ...legacyWarnings].join('; ')
         : null;
+
+    if (cleanupWarning) {
+      logPhotoCleanupIssue('replace-unreferenced', {
+        digitalCardId,
+        recipientIds,
+        cleanupWarning,
+      });
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       console.info('[Individual photo publish] new upload success', {

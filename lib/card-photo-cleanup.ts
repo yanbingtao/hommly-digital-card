@@ -1,17 +1,136 @@
 import { getEffectiveExpiry, isCardExpired } from './card-expiry';
-import { deleteAllDigitalCardMediaForCard } from './digital-card-media';
-import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
+import {
+  cleanupUnreferencedMediaIds,
+  deleteAllDigitalCardMediaForCard,
+  listDigitalCardMediaForCard,
+} from './digital-card-media';
+import { deleteCardPhoto, clearCardPhotoMetadata, logPhotoCleanupIssue } from './card-photo-storage';
 import { getSupabase } from './supabase';
-import { CardWithOrder } from './types';
+import type { CardWithOrder, DigitalCardMedia } from './types';
+
+export const ORPHAN_MEDIA_SAFE_AGE_MS = 24 * 60 * 60 * 1000;
 
 export type PhotoCleanupResult = {
   scanned: number;
   cleaned: number;
+  mediaRowsDeleted: number;
+  storageFilesDeleted: number;
+  legacyPathsDeleted: number;
+  orphanMediaCleaned: number;
+  warnings: string[];
   errors: string[];
 };
 
+function emptyResult(): PhotoCleanupResult {
+  return {
+    scanned: 0,
+    cleaned: 0,
+    mediaRowsDeleted: 0,
+    storageFilesDeleted: 0,
+    legacyPathsDeleted: 0,
+    orphanMediaCleaned: 0,
+    warnings: [],
+    errors: [],
+  };
+}
+
+async function cleanupLegacyRecipientPhotoPaths(
+  supabase: ReturnType<typeof getSupabase>,
+  digitalCardId: string
+): Promise<{ deleted: number; errors: string[] }> {
+  const { data, error } = await supabase
+    .from('digital_card_recipients')
+    .select('id, photo_path')
+    .eq('digital_card_id', digitalCardId)
+    .not('photo_path', 'is', null);
+
+  if (error) {
+    return { deleted: 0, errors: [error.message] };
+  }
+
+  const paths = Array.from(
+    new Set(
+      (data ?? [])
+        .map((row) => row.photo_path as string | null)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  let deleted = 0;
+  const errors: string[] = [];
+
+  for (const path of paths) {
+    const result = await deleteCardPhoto(path);
+    if (!result.ok) {
+      errors.push(`${path}: ${result.error}`);
+      continue;
+    }
+    deleted += 1;
+  }
+
+  if (paths.length > 0) {
+    const { error: clearError } = await supabase
+      .from('digital_card_recipients')
+      .update({
+        photo_path: null,
+        photo_original_name: null,
+        photo_mime_type: null,
+        photo_size_bytes: null,
+        photo_uploaded_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('digital_card_id', digitalCardId)
+      .not('photo_path', 'is', null);
+
+    if (clearError) {
+      errors.push(clearError.message);
+    }
+  }
+
+  return { deleted, errors };
+}
+
+export async function cleanupOrphanDigitalCardMedia(
+  olderThanMs = ORPHAN_MEDIA_SAFE_AGE_MS
+): Promise<{ cleaned: number; errors: string[]; warnings: string[] }> {
+  const supabase = getSupabase();
+  const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+
+  const { data, error } = await supabase
+    .from('digital_card_media')
+    .select('id, created_at, storage_path')
+    .lt('created_at', cutoff)
+    .limit(500);
+
+  if (error) {
+    return { cleaned: 0, errors: [error.message], warnings: [] };
+  }
+
+  const mediaRows = (data ?? []) as Pick<DigitalCardMedia, 'id' | 'created_at' | 'storage_path'>[];
+  if (mediaRows.length === 0) {
+    return { cleaned: 0, errors: [], warnings: [] };
+  }
+
+  const { cleaned, errors } = await cleanupUnreferencedMediaIds(
+    supabase,
+    mediaRows.map((row) => row.id)
+  );
+
+  if (errors.length > 0) {
+    logPhotoCleanupIssue('orphan-media-sweep', { errors });
+  }
+
+  return {
+    cleaned: cleaned.length,
+    errors: [],
+    warnings: errors,
+  };
+}
+
 export async function cleanupExpiredCardPhotos(): Promise<PhotoCleanupResult> {
   const supabase = getSupabase();
+  const result = emptyResult();
+
   const { data, error } = await supabase
     .from('digital_cards')
     .select(
@@ -20,12 +139,12 @@ export async function cleanupExpiredCardPhotos(): Promise<PhotoCleanupResult> {
     .or('photo_path.not.is.null,card_mode.eq.individual');
 
   if (error) {
-    return { scanned: 0, cleaned: 0, errors: [error.message] };
+    result.errors.push(error.message);
+    return result;
   }
 
   const cards = (data ?? []) as CardWithOrder[];
-  const errors: string[] = [];
-  let cleaned = 0;
+  result.scanned = cards.length;
 
   for (const card of cards) {
     const effectiveExpiry = getEffectiveExpiry(card);
@@ -37,29 +156,80 @@ export async function cleanupExpiredCardPhotos(): Promise<PhotoCleanupResult> {
     try {
       if (card.card_mode === 'individual') {
         const mediaResult = await deleteAllDigitalCardMediaForCard(supabase, card.id);
+        result.mediaRowsDeleted += mediaResult.deletedRows;
+        result.storageFilesDeleted += mediaResult.deletedPaths.length;
         if (mediaResult.errors.length > 0) {
-          errors.push(...mediaResult.errors.map((message) => `Card ${card.id}: ${message}`));
+          result.warnings.push(...mediaResult.errors.map((message) => `Card ${card.id}: ${message}`));
+          logPhotoCleanupIssue('expired-individual-media', {
+            cardId: card.id,
+            errors: mediaResult.errors,
+          });
         }
-        if (mediaResult.deletedRows > 0 || mediaResult.deletedPaths.length > 0) {
-          cleaned += 1;
+
+        const legacy = await cleanupLegacyRecipientPhotoPaths(supabase, card.id);
+        result.legacyPathsDeleted += legacy.deleted;
+        if (legacy.errors.length > 0) {
+          result.warnings.push(...legacy.errors.map((message) => `Card ${card.id}: ${message}`));
+          logPhotoCleanupIssue('expired-legacy-paths', {
+            cardId: card.id,
+            errors: legacy.errors,
+          });
+        }
+
+        if (
+          mediaResult.deletedRows > 0 ||
+          mediaResult.deletedPaths.length > 0 ||
+          legacy.deleted > 0
+        ) {
+          result.cleaned += 1;
         }
         continue;
       }
 
       if (!card.photo_path) continue;
 
-      await deleteCardPhoto(card.photo_path);
+      const deleteResult = await deleteCardPhoto(card.photo_path);
+      if (deleteResult && deleteResult.ok === false) {
+        result.warnings.push(`Card ${card.id}: ${deleteResult.error}`);
+        logPhotoCleanupIssue('expired-shared-photo', {
+          cardId: card.id,
+          path: card.photo_path,
+          error: deleteResult.error,
+        });
+      } else {
+        result.storageFilesDeleted += 1;
+      }
+
       await clearCardPhotoMetadata(supabase, card.id);
-      cleaned += 1;
+      result.cleaned += 1;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown cleanup error';
-      errors.push(`Card ${card.id}: ${message}`);
+      result.errors.push(`Card ${card.id}: ${message}`);
+      logPhotoCleanupIssue('expired-card', { cardId: card.id, error: message });
     }
   }
 
-  console.info(
-    `[cleanupExpiredCardPhotos] scanned=${cards.length} cleaned=${cleaned} errors=${errors.length}`
-  );
+  const orphanResult = await cleanupOrphanDigitalCardMedia();
+  result.orphanMediaCleaned += orphanResult.cleaned;
+  result.warnings.push(...orphanResult.warnings);
+  result.errors.push(...orphanResult.errors);
 
-  return { scanned: cards.length, cleaned, errors };
+  console.info('[cleanupExpiredCardPhotos]', {
+    scanned: result.scanned,
+    cleaned: result.cleaned,
+    mediaRowsDeleted: result.mediaRowsDeleted,
+    storageFilesDeleted: result.storageFilesDeleted,
+    legacyPathsDeleted: result.legacyPathsDeleted,
+    orphanMediaCleaned: result.orphanMediaCleaned,
+    warnings: result.warnings.length,
+    errors: result.errors.length,
+  });
+
+  return result;
+}
+
+/** Kept for diagnostics / future Storage listing sweeps. */
+export async function listMediaRowsForCard(digitalCardId: string) {
+  const supabase = getSupabase();
+  return listDigitalCardMediaForCard(supabase, digitalCardId);
 }
