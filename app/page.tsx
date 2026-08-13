@@ -30,7 +30,7 @@ export default function Home() {
       <main>
         <HeroSection assets={assets} />
         <BenefitStrip />
-        <HowItWorks />
+        <HowItWorks assets={assets} />
         <RecipientExperienceSection assets={assets} />
         <HommlyGiftSection assets={assets} />
         <OccasionsSection assets={assets} />
