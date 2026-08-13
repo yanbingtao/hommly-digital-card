@@ -61,7 +61,7 @@ import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/BrandLogo';
-import { Copy, Eye, QrCode, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, Gift, type LucideIcon } from 'lucide-react';
+import { Copy, Eye, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, Gift, PanelRight, type LucideIcon } from 'lucide-react';
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton';
 import { AdminIndividualRecipientQrList } from '@/components/admin/AdminIndividualRecipientQrCard';
 import { getConfiguredSiteOrigin } from '@/lib/site-origin';
@@ -944,8 +944,8 @@ export function AdminCardsClient({
 
                       <div className="mt-3 grid grid-cols-4 gap-0.5 rounded-xl bg-stone-50 p-1 ring-1 ring-stone-100">
                         <CardQuickAction
-                          label="QR"
-                          icon={QrCode}
+                          label="Admin"
+                          icon={PanelRight}
                           onClick={() => openCardDetails(card)}
                           disabled={expired}
                         />
