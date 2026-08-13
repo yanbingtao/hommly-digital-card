@@ -6,44 +6,60 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { ECARD_AVAILABILITY_MONTHS, LANDING_MAX_WIDTH } from './constants';
+import { cn } from '@/lib/utils';
 
 const FAQ_ITEMS = [
   {
-    question: 'Can I edit my message later?',
+    question: 'What is a Hommly eCard?',
     answer:
-      'Yes. After you place your order, you receive a private link to personalise your eCard. You can update your message and photos anytime before the recipient scans the QR code.',
-  },
-  {
-    question: 'How long is the QR valid?',
-    answer:
-      'Your QR code remains active so the recipient can open your eCard whenever they are ready. There is no rush — the surprise is always waiting.',
+      'A Hommly eCard is a personalised digital message included with selected Hommly gifts. Recipients open it by scanning the QR card that comes with the gift — no app required.',
   },
   {
     question: 'Does the recipient need an app?',
     answer:
-      'No app required. The recipient simply scans the QR code with their phone camera and your personalised eCard opens instantly in their browser.',
+      'No. The recipient scans the QR code with their phone camera and your eCard opens directly in their browser.',
   },
   {
-    question: 'Is it free?',
+    question: 'Can I add a photo?',
     answer:
-      'Hommly eCard is included free with selected Hommly gifts. When you shop on Hommly, look for gifts that include the eCard experience.',
+      'Yes. You can add a photo when you personalise your eCard, along with your message and theme.',
+  },
+  {
+    question: 'Can I edit my eCard later?',
+    answer:
+      'Yes. After your order is set up, you receive a private edit link. You can update your message, photo, theme, links, and Viewing PIN while the eCard remains available.',
+  },
+  {
+    question: 'How long is my eCard available?',
+    answer: `Your eCard stays available for ${ECARD_AVAILABILITY_MONTHS} months from when it is first published, unless a different expiry is set for that card.`,
+  },
+  {
+    question: 'Can I protect the eCard with a PIN?',
+    answer:
+      'Yes. You can optionally enable a Viewing PIN (4–6 digits) so the recipient must enter it before opening the eCard.',
+  },
+  {
+    question: 'Is the Hommly eCard free?',
+    answer:
+      'Hommly eCard is free with selected Hommly gifts. When shopping on Hommly.sg, look for gifts that include the eCard experience.',
   },
 ];
 
 export function FaqSection() {
   return (
-    <section id="faq" className="bg-stone-50 px-4 py-24 sm:px-6 sm:py-32">
-      <div className="mx-auto max-w-3xl">
+    <section id="faq" className="scroll-mt-24 bg-[#fffaf7] px-4 py-16 sm:px-6 sm:py-24">
+      <div className={cn('mx-auto max-w-3xl', LANDING_MAX_WIDTH)}>
         <div className="text-center">
-          <p className="text-sm font-medium uppercase tracking-widest text-stone-400">Questions</p>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">FAQ</p>
+          <h2 className="mt-3 font-display text-3xl font-semibold leading-[1.25] tracking-[-0.02em] text-stone-900 sm:text-4xl sm:leading-[1.22]">
             Frequently asked questions
           </h2>
         </div>
 
-        <Accordion type="single" collapsible className="mt-12">
+        <Accordion type="single" collapsible className="mt-10">
           {FAQ_ITEMS.map((item, index) => (
-            <AccordionItem key={item.question} value={`item-${index}`}>
+            <AccordionItem key={item.question} value={`item-${index}`} className="border-stone-200/80">
               <AccordionTrigger className="text-left text-base font-medium text-stone-800 hover:no-underline">
                 {item.question}
               </AccordionTrigger>

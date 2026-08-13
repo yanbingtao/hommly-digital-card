@@ -1,142 +1,125 @@
-import { ArrowDown, ExternalLink } from 'lucide-react';
-import { SHOP_URL } from './constants';
+import Image from 'next/image';
+import { Check, ExternalLink } from 'lucide-react';
+import { HeroProductVisual } from '@/components/home/HeroProductVisual';
+import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-assets';
+import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
+import { cn } from '@/lib/utils';
 
-function GiftVisual() {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative flex h-28 w-28 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-100 to-orange-100 shadow-lg shadow-amber-100/80 ring-1 ring-amber-200/50">
-        <span className="text-5xl" aria-hidden>🎁</span>
-      </div>
-      <p className="mt-3 text-sm font-medium text-stone-600">Gift</p>
-    </div>
-  );
-}
+const BULLETS = [
+  'Write a heartfelt message',
+  'Add your favourite photos',
+  'Beautiful eCard themes',
+  'Opens instantly with a QR scan',
+  'Free with selected Hommly gifts',
+];
 
-function QrCardVisual() {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="flex h-28 w-28 flex-col items-center justify-center rounded-3xl bg-white shadow-lg shadow-stone-200/60 ring-1 ring-stone-200/80">
-        <div className="grid grid-cols-4 gap-0.5 rounded-lg bg-stone-50 p-2" aria-hidden>
-          {Array.from({ length: 16 }).map((_, i) => (
-            <span
-              key={i}
-              className={`h-2.5 w-2.5 rounded-sm ${i % 3 === 0 ? 'bg-stone-800' : 'bg-stone-300'}`}
-            />
-          ))}
-        </div>
-        <p className="mt-2 text-[9px] font-semibold uppercase tracking-widest text-stone-400">QR Card</p>
-      </div>
-      <p className="mt-3 text-sm font-medium text-stone-600">QR Card</p>
-    </div>
-  );
-}
+type HeroSectionProps = {
+  assets: HomeAssetAvailability;
+};
 
-function PhoneVisual() {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="w-[140px] rounded-[1.75rem] bg-stone-900 p-1.5 shadow-2xl shadow-stone-300/50 ring-1 ring-stone-800">
-        <div className="overflow-hidden rounded-[1.4rem] bg-gradient-to-b from-amber-50 via-rose-50 to-orange-50">
-          <div className="px-3 py-4 text-center">
-            <span className="text-2xl" aria-hidden>🎉</span>
-            <p className="mt-2 text-[10px] font-semibold leading-tight text-stone-700">
-              Happy Birthday!
-            </p>
-            <p className="mt-1.5 text-[8px] leading-relaxed text-stone-500">
-              A message made just for you...
-            </p>
-            <div className="mx-auto mt-2 flex justify-center gap-0.5">
-              {[0, 1, 2].map((i) => (
-                <span key={i} className="h-1 w-1 rounded-full bg-rose-300" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      <p className="mt-3 text-sm font-medium text-stone-600">Animated eCard</p>
-    </div>
-  );
-}
+export function HeroSection({ assets }: HeroSectionProps) {
+  const hasHeroImage = assets.hero;
 
-function FlowArrow() {
   return (
-    <div className="flex items-center justify-center text-stone-300" aria-hidden>
-      <ArrowDown className="h-5 w-5 lg:hidden" />
-      <span className="hidden text-xl lg:inline">→</span>
-    </div>
-  );
-}
+    <section
+      className={cn(
+        'relative overflow-hidden',
+        hasHeroImage
+          ? 'min-h-[min(92vh,820px)] sm:min-h-[min(88vh,780px)]'
+          : 'px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-14'
+      )}
+    >
+      {hasHeroImage ? (
+        <>
+          <Image
+            src={HOME_ASSETS.hero}
+            alt="Hommly gift with QR card and phone showing a personalised Hommly eCard"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-[72%_center] sm:object-[68%_center] lg:object-center"
+          />
+          {/* Soft scrim so HTML copy stays readable over the photo */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,246,241,0.94)_0%,rgba(255,246,241,0.55)_42%,rgba(255,246,241,0.78)_100%)] sm:bg-[linear-gradient(90deg,rgba(255,246,241,0.96)_0%,rgba(255,246,241,0.72)_38%,rgba(255,246,241,0.18)_62%,transparent_78%)]"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#fffaf7] to-transparent"
+          />
+        </>
+      ) : (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(255,228,214,0.75),transparent_55%),radial-gradient(ellipse_at_90%_20%,rgba(254,205,211,0.45),transparent_50%),linear-gradient(180deg,#fffaf7_0%,#fff6f1_45%,#ffffff_100%)]"
+        />
+      )}
 
-export function HeroSection() {
-  return (
-    <section className="relative overflow-hidden bg-white px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-20">
       <div
-        aria-hidden
-        className="pointer-events-none absolute -left-32 top-0 h-96 w-96 rounded-full bg-rose-100/40 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-32 top-20 h-80 w-80 rounded-full bg-amber-100/50 blur-3xl"
-      />
-
-      <div className="relative mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-2 lg:gap-12">
-        <div>
-          <p className="mb-6 inline-flex items-center rounded-full border border-rose-100 bg-rose-50/80 px-4 py-1.5 text-xs font-medium tracking-wide text-rose-600">
+        className={cn(
+          'relative mx-auto',
+          LANDING_MAX_WIDTH,
+          hasHeroImage
+            ? 'flex min-h-[min(92vh,820px)] items-center px-4 py-16 sm:min-h-[min(88vh,780px)] sm:px-6 sm:py-20 lg:py-24'
+            : 'grid items-center gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 xl:gap-14'
+        )}
+      >
+        <div
+          className={cn(
+            'motion-safe:animate-hommly-rise',
+            hasHeroImage && 'max-w-xl lg:max-w-[34rem]'
+          )}
+        >
+          <p className="mb-5 inline-flex items-center rounded-full border border-rose-200/80 bg-white/85 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-rose-600 shadow-sm shadow-rose-100/60 backdrop-blur-sm">
             Hommly eCard · Free with selected gifts
           </p>
 
-          <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight text-stone-900 sm:text-5xl lg:text-[3.25rem]">
-            Give more
+          <h1 className="font-display text-[2.35rem] font-semibold leading-[1.22] tracking-[-0.02em] text-stone-900 sm:text-5xl sm:leading-[1.2] lg:text-[3.5rem] lg:leading-[1.18] xl:text-[3.75rem]">
+            More than a gift.
             <br />
-            <span className="bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500 bg-clip-text text-transparent">
-              than a gift.
-            </span>
+            <span className="text-rose-500">A moment they&apos;ll remember.</span>
           </h1>
 
-          <p className="mt-6 max-w-lg text-lg leading-relaxed text-stone-500">
-            Surprise someone with a personalised digital message that opens with a simple QR scan.
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-stone-600 sm:text-lg">
+            Hommly eCard lets you add a personal touch that stays long after the gift is unwrapped.
           </p>
 
-          <ul className="mt-8 space-y-2.5">
-            {['Personal message', 'Photos', 'Beautiful animations', 'Free with selected Hommly gifts'].map(
-              (item) => (
-                <li key={item} className="flex items-center gap-2.5 text-sm text-stone-600">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />
-                  {item}
-                </li>
-              )
-            )}
+          <ul className="mt-7 space-y-2.5">
+            {BULLETS.map((item) => (
+              <li key={item} className="flex items-start gap-2.5 text-sm text-stone-700 sm:text-[15px]">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                  <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+                </span>
+                {item}
+              </li>
+            ))}
           </ul>
 
-          <div className="mt-10 flex flex-wrap gap-3">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <a
               href={SHOP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-7 py-3.5 text-sm font-medium text-white shadow-lg shadow-stone-900/20 transition hover:bg-stone-800"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-rose-500 px-6 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
             >
-              Shop Gifts
+              Shop Gifts on Hommly.sg
               <ExternalLink className="h-4 w-4" aria-hidden />
             </a>
             <a
               href="#how-it-works"
-              className="inline-flex items-center rounded-full border border-stone-200 bg-white px-7 py-3.5 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-stone-200 bg-white/90 px-6 text-sm font-semibold text-stone-700 backdrop-blur-sm transition hover:border-stone-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 focus-visible:ring-offset-2"
             >
               See How It Works
             </a>
           </div>
         </div>
 
-        <div className="flex justify-center lg:justify-end">
-          <div className="rounded-[2rem] bg-gradient-to-br from-stone-50 to-rose-50/50 p-8 shadow-xl shadow-stone-200/40 ring-1 ring-stone-100 sm:p-10">
-            <div className="flex flex-col items-center gap-4 lg:flex-row lg:gap-6">
-              <GiftVisual />
-              <FlowArrow />
-              <QrCardVisual />
-              <FlowArrow />
-              <PhoneVisual />
-            </div>
+        {!hasHeroImage ? (
+          <div className="motion-safe:animate-hommly-rise motion-safe:[animation-delay:120ms]">
+            <HeroProductVisual assets={assets} />
           </div>
-        </div>
+        ) : null}
       </div>
     </section>
   );

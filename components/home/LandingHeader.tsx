@@ -1,23 +1,49 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
-import { SHOP_URL } from './constants';
+import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
+import { cn } from '@/lib/utils';
 
 export function LandingHeader() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-stone-200/60 bg-white/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <BrandLogo />
+  const [scrolled, setScrolled] = useState(false);
 
-        <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main navigation">
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return (
+    <header
+      className={cn(
+        'sticky top-0 z-50 transition-[background-color,box-shadow,border-color] duration-300 motion-reduce:transition-none',
+        scrolled
+          ? 'border-b border-stone-200/70 bg-[#fffaf7]/90 shadow-sm shadow-stone-200/40 backdrop-blur-xl'
+          : 'border-b border-transparent bg-[#fffaf7]/70 backdrop-blur-md'
+      )}
+    >
+      <div
+        className={cn(
+          'mx-auto flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4',
+          LANDING_MAX_WIDTH
+        )}
+      >
+        <BrandLogo className="min-h-11" />
+
+        <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Main navigation">
           <a
             href="#how-it-works"
-            className="hidden rounded-lg px-3 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50 hover:text-stone-900 sm:inline-block"
+            className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100/80 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60 sm:inline-flex"
           >
             How It Works
           </a>
           <a
             href="#preview"
-            className="hidden rounded-lg px-3 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50 hover:text-stone-900 md:inline-block"
+            className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100/80 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60 md:inline-flex"
           >
             Preview
           </a>
@@ -25,13 +51,14 @@ export function LandingHeader() {
             href={SHOP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-800"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-rose-500 px-4 text-sm font-semibold text-white shadow-sm shadow-rose-500/25 transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
           >
             Shop Gifts
+            <ExternalLink className="h-3.5 w-3.5 opacity-90" aria-hidden />
           </a>
           <Link
             href="/admin/login"
-            className="ml-1 rounded-lg px-3 py-2 text-sm font-medium text-stone-500 transition hover:text-stone-800"
+            className="ml-1 hidden min-h-11 items-center px-2 text-xs font-medium text-stone-400 transition hover:text-stone-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 sm:inline-flex"
           >
             Admin
           </Link>

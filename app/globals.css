@@ -82,6 +82,21 @@
 }
 
 @layer utilities {
+  .hommly-landing {
+    --hommly-cream: #fffaf7;
+    --hommly-blush: #fff1eb;
+    --hommly-coral: #f43f5e;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hommly-landing .motion-safe\:animate-hommly-float,
+    .hommly-landing .motion-safe\:animate-hommly-rise,
+    .hommly-landing .motion-safe\:animate-hommly-glow,
+    .hommly-landing .animate-hommly-marquee {
+      animation: none !important;
+    }
+  }
+
   .gift-list-scroll {
     scrollbar-width: thin;
     scrollbar-color: #d6d3d1 transparent;

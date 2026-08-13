@@ -11,16 +11,60 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
+          'var(--font-hommly-sans)',
           'ui-sans-serif',
           'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"Segoe UI"',
-          'Roboto',
-          '"Helvetica Neue"',
-          'Arial',
           'sans-serif',
         ],
+        display: [
+          'var(--font-hommly-display)',
+          'var(--font-hommly-sans)',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+        ],
+      },
+      keyframes: {
+        'hommly-float': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-6px)' },
+        },
+        'hommly-rise': {
+          '0%': { opacity: '0', transform: 'translateY(16px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'hommly-glow': {
+          '0%, 100%': { opacity: '0.55' },
+          '50%': { opacity: '0.85' },
+        },
+        'hommly-marquee': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+        'accordion-down': {
+          from: {
+            height: '0',
+          },
+          to: {
+            height: 'var(--radix-accordion-content-height)',
+          },
+        },
+        'accordion-up': {
+          from: {
+            height: 'var(--radix-accordion-content-height)',
+          },
+          to: {
+            height: '0',
+          },
+        },
+      },
+      animation: {
+        'hommly-float': 'hommly-float 5s ease-in-out infinite',
+        'hommly-rise': 'hommly-rise 700ms ease-out both',
+        'hommly-glow': 'hommly-glow 6s ease-in-out infinite',
+        'hommly-marquee': 'hommly-marquee 48s linear infinite',
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -73,28 +117,6 @@ const config: Config = {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
-      },
-      keyframes: {
-        'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-        },
-        'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
-        },
-      },
-      animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
       },
     },
   },
