@@ -651,19 +651,19 @@ describe('Individual photo preview and /g resolution', () => {
 describe('Publish overwrite copy', () => {
   it('shows single-recipient replace copy', () => {
     expect(getIndividualPublishOverwriteCopy([7], 37)).toBe(
-      'Publishing will replace the current personalisation for Gift #07.'
+      'Saving will update the eCard for Gift #07.'
     );
   });
 
   it('shows multi-select copy', () => {
     expect(getIndividualPublishOverwriteCopy([1, 2, 3], 37)).toBe(
-      'Publishing will apply these settings to all 3 selected gifts.'
+      'Saving will update all 3 selected eCards.'
     );
   });
 
   it('shows select-all copy', () => {
     expect(getIndividualPublishOverwriteCopy([1, 2, 3], 3)).toBe(
-      'Publishing will apply these settings to all 3 gifts.'
+      'Saving will update all 3 eCards.'
     );
   });
 });

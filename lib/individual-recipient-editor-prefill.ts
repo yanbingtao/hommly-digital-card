@@ -211,12 +211,12 @@ export function getIndividualPublishOverwriteCopy(
 ): string {
   const count = selectedNumbers.length;
   if (count === 1) {
-    return `Publishing will replace the current personalisation for ${formatRecipientNumber(selectedNumbers[0]!)}.`;
+    return `Saving will update the eCard for ${formatRecipientNumber(selectedNumbers[0]!)}.`;
   }
   if (count === totalRecipientCount) {
-    return `Publishing will apply these settings to all ${count} gift${count === 1 ? '' : 's'}.`;
+    return `Saving will update all ${count} eCard${count === 1 ? '' : 's'}.`;
   }
-  return `Publishing will apply these settings to all ${count} selected gift${count === 1 ? '' : 's'}.`;
+  return `Saving will update all ${count} selected eCard${count === 1 ? '' : 's'}.`;
 }
 
 export function getIndividualEditorHeading(
@@ -225,26 +225,23 @@ export function getIndividualEditorHeading(
 ): string {
   const count = selectedNumbers.length;
   if (count === 1) {
-    return `Personalise ${formatRecipientNumber(selectedNumbers[0]!)}`;
+    return `Edit ${formatRecipientNumber(selectedNumbers[0]!)} eCard`;
   }
   if (count === totalRecipientCount) {
-    return `Personalise All ${count} Gift${count === 1 ? '' : 's'}`;
+    return `Edit all ${count} eCards`;
   }
-  return `Personalise ${count} Gift${count === 1 ? '' : 's'}`;
+  return `Edit ${count} eCards`;
 }
 
 export function getIndividualPublishLabel(
   selectedNumbers: number[],
-  totalRecipientCount: number
+  _totalRecipientCount: number
 ): string {
   const count = selectedNumbers.length;
-  if (count === 1) {
-    return `Publish ${formatRecipientNumber(selectedNumbers[0]!)}`;
+  if (count <= 1) {
+    return 'Save eCard';
   }
-  if (count === totalRecipientCount) {
-    return `Publish to All ${count} Gift${count === 1 ? '' : 's'}`;
-  }
-  return `Publish to ${count} Gift${count === 1 ? '' : 's'}`;
+  return 'Save eCards';
 }
 
 export function formatSelectedRecipientsSummary(selectedNumbers: number[]): string {

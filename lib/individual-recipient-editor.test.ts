@@ -291,18 +291,18 @@ function createPublishMockSupabase(options: {
 
 describe('Individual editor headings and labels', () => {
   it('uses dynamic single heading', () => {
-    expect(getIndividualEditorHeading([7], 37)).toBe('Personalise Gift #07');
-    expect(getIndividualPublishLabel([7], 37)).toBe('Publish Gift #07');
+    expect(getIndividualEditorHeading([7], 37)).toBe('Edit Gift #07 eCard');
+    expect(getIndividualPublishLabel([7], 37)).toBe('Save eCard');
   });
 
   it('uses dynamic multi heading', () => {
-    expect(getIndividualEditorHeading([1, 5, 8], 37)).toBe('Personalise 3 Gifts');
-    expect(getIndividualPublishLabel([1, 5, 8], 37)).toBe('Publish to 3 Gifts');
+    expect(getIndividualEditorHeading([1, 5, 8], 37)).toBe('Edit 3 eCards');
+    expect(getIndividualPublishLabel([1, 5, 8], 37)).toBe('Save eCards');
   });
 
   it('uses dynamic all heading', () => {
-    expect(getIndividualEditorHeading([1, 2, 3], 3)).toBe('Personalise All 3 Gifts');
-    expect(getIndividualPublishLabel([1, 2, 3], 3)).toBe('Publish to All 3 Gifts');
+    expect(getIndividualEditorHeading([1, 2, 3], 3)).toBe('Edit all 3 eCards');
+    expect(getIndividualPublishLabel([1, 2, 3], 3)).toBe('Save eCards');
   });
 
   it('summarises many selected gifts compactly', () => {
