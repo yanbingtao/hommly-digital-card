@@ -35,9 +35,14 @@ const FAQ_ITEMS = [
     answer: `Your eCard stays available for ${ECARD_AVAILABILITY_MONTHS} months from when it is first published, unless a different expiry is set for that card.`,
   },
   {
-    question: 'Can I protect the eCard with a PIN?',
+    question: 'Can I protect my eCard with a PIN?',
     answer:
-      'Yes. You can optionally enable a Viewing PIN (4–6 digits) so the recipient must enter it before opening the eCard.',
+      'Yes. You can add an optional 4–6 digit Viewing PIN. The recipient will be asked to enter it before opening the eCard.',
+  },
+  {
+    question: 'Can I add my social media or contact links?',
+    answer:
+      'Yes. You can optionally add WhatsApp, Instagram, LinkedIn, TikTok, website or email links to your eCard. They appear below your message for the recipient to open.',
   },
   {
     question: 'Is the Hommly eCard free?',

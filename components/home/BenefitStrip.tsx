@@ -20,8 +20,8 @@ const BENEFITS = [
   },
   {
     icon: Lock,
-    title: 'Privacy first',
-    description: 'Secure & reliable',
+    title: 'Privacy when you want it',
+    description: 'Optional PIN protection',
   },
 ];
 

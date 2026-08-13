@@ -6,10 +6,11 @@ import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
 import { cn } from '@/lib/utils';
 
 const BULLETS = [
-  'Write a heartfelt message',
-  'Add your favourite photos',
-  'Beautiful eCard themes',
-  'Opens instantly with a QR scan',
+  'Personal messages',
+  'Photos & eCard themes',
+  'Share your social & web links',
+  'Optional PIN protection',
+  'Instant QR access — no app needed',
   'Free with selected Hommly gifts',
 ];
 
@@ -85,7 +86,7 @@ export function HeroSection({ assets }: HeroSectionProps) {
             Hommly eCard lets you add a personal touch that stays long after the gift is unwrapped.
           </p>
 
-          <ul className="mt-7 space-y-2.5">
+          <ul className="mt-6 grid gap-x-6 gap-y-2 sm:mt-7 sm:grid-cols-1 lg:grid-cols-2 lg:gap-y-2">
             {BULLETS.map((item) => (
               <li key={item} className="flex items-start gap-2.5 text-sm text-stone-700 sm:text-[15px]">
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">

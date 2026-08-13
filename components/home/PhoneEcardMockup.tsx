@@ -1,3 +1,4 @@
+import { Globe, Instagram, MessageCircle, Music2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type PhoneEcardMockupProps = {
@@ -10,6 +11,13 @@ const SIZE = {
   md: 'w-[240px] sm:w-[270px]',
   lg: 'w-[260px] sm:w-[300px]',
 } as const;
+
+const LINK_ICONS = [
+  { key: 'whatsapp', Icon: MessageCircle, label: 'WhatsApp' },
+  { key: 'instagram', Icon: Instagram, label: 'Instagram' },
+  { key: 'tiktok', Icon: Music2, label: 'TikTok' },
+  { key: 'website', Icon: Globe, label: 'Website' },
+] as const;
 
 /**
  * CSS phone frame mirroring the recipient Hommly eCard UI.
@@ -30,7 +38,7 @@ export function PhoneEcardMockup({ className, size = 'md' }: PhoneEcardMockupPro
               Hommly eCard
             </p>
           </div>
-          <div className="px-5 pb-7 pt-6 text-center">
+          <div className="px-5 pb-6 pt-6 text-center">
             <span className="text-3xl" aria-hidden>
               🎂
             </span>
@@ -42,7 +50,7 @@ export function PhoneEcardMockup({ className, size = 'md' }: PhoneEcardMockupPro
             </p>
             {/* Decorative photo panel — UI chrome, not a product photo */}
             <div
-              className="relative mx-auto mt-4 flex h-28 w-full items-end overflow-hidden rounded-xl bg-gradient-to-br from-rose-100 via-amber-50 to-orange-100 ring-1 ring-rose-100"
+              className="relative mx-auto mt-4 flex h-24 w-full items-end overflow-hidden rounded-xl bg-gradient-to-br from-rose-100 via-amber-50 to-orange-100 ring-1 ring-rose-100 sm:h-28"
               aria-hidden
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.65),transparent_45%)]" />
@@ -50,12 +58,20 @@ export function PhoneEcardMockup({ className, size = 'md' }: PhoneEcardMockupPro
                 <div className="h-1.5 w-16 rounded-full bg-white/70" />
               </div>
             </div>
-            <div className="mt-4 flex justify-center gap-1.5" aria-hidden>
-              {[0, 1, 2].map((i) => (
+
+            {/* Social & web links — mirrors recipient eCard link row */}
+            <div
+              className="mt-4 flex items-center justify-center gap-2"
+              aria-label="Example social and web links on a Hommly eCard"
+            >
+              {LINK_ICONS.map(({ key, Icon, label }) => (
                 <span
-                  key={i}
-                  className={cn('h-1.5 w-1.5 rounded-full', i === 0 ? 'bg-rose-400' : 'bg-rose-200')}
-                />
+                  key={key}
+                  title={label}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-stone-500 shadow-sm ring-1 ring-stone-200/60"
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                </span>
               ))}
             </div>
           </div>

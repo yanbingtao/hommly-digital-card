@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
 import { HomeAssetImage } from '@/components/home/HomeAssetImage';
 import { PhoneEcardMockup } from '@/components/home/PhoneEcardMockup';
 import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-assets';
@@ -7,10 +7,10 @@ import { cn } from '@/lib/utils';
 
 const FEATURES = [
   'Personal message',
-  'Photos & memories',
-  'Beautiful eCard themes',
-  'Optional Viewing PIN',
-  'Works on any device',
+  'Photos & eCard themes',
+  'Social & web links',
+  'Optional PIN protection',
+  'No app required',
 ];
 
 type RecipientExperienceSectionProps = {
@@ -68,6 +68,18 @@ export function RecipientExperienceSection({ assets }: RecipientExperienceSectio
                   </li>
                 ))}
               </ul>
+
+              <div className="mt-8 inline-flex items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-rose-100/80">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+                  <Lock className="h-4 w-4" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-stone-800">Optional PIN protection</p>
+                  <p className="mt-0.5 font-mono text-xs tracking-[0.35em] text-stone-400" aria-hidden>
+                    ••••
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

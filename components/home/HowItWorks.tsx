@@ -11,7 +11,7 @@ const STEPS = [
   {
     icon: PencilLine,
     title: 'Personalise Online',
-    description: 'Add your message, photo and choose your eCard style.',
+    description: 'Add your message, photo, links and optional PIN.',
   },
   {
     icon: QrCode,
