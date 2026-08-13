@@ -1,3 +1,4 @@
+import { buildRecipientViewUrl } from './individual-card-urls';
 import type { DigitalCardRecipient } from './types';
 import { parseSenderLinksFromDb } from './sender-links';
 
@@ -18,6 +19,8 @@ export interface IndividualRecipientManagerItem {
   has_photo: boolean;
   has_sender_links: boolean;
   view_pin_enabled: boolean;
+  /** Recipient-facing /g/{view_token} URL when published; never an edit URL. */
+  view_url: string | null;
 }
 
 export type RecipientStatusCounts = {
@@ -54,19 +57,37 @@ export function recipientHasMeaningfulContent(item: IndividualRecipientManagerIt
 
 /**
  * Maps a server-side recipient row to a safe buyer-manager DTO.
- * Strips view_token, view_pin_hash, photo_path, message text, and other internal fields.
+ * Strips raw view_token, view_pin_hash, photo_path, message text, and other internal fields.
+ * For published gifts, exposes the public recipient View URL (same /g/{token} the recipient uses).
  */
 export function toIndividualRecipientManagerItem(
-  row: DigitalCardRecipient
+  row: DigitalCardRecipient,
+  siteOrigin?: string
 ): IndividualRecipientManagerItem {
+  const status: 'draft' | 'published' = row.status === 'published' ? 'published' : 'draft';
+  let view_url: string | null = null;
+
+  if (status === 'published') {
+    const token = row.view_token?.trim();
+    if (token) {
+      view_url = buildRecipientViewUrl({ view_token: token }, siteOrigin);
+    } else {
+      console.warn('[IndividualRecipientManager] published recipient missing view_token', {
+        id: row.id,
+        recipient_number: row.recipient_number,
+      });
+    }
+  }
+
   return {
     id: row.id,
     recipient_number: row.recipient_number,
-    status: row.status === 'published' ? 'published' : 'draft',
+    status,
     has_message: Boolean(row.message?.trim()),
     has_photo: Boolean(row.photo_media_id || row.photo_path),
     has_sender_links: recipientHasSenderLinks(row),
     view_pin_enabled: Boolean(row.view_pin_enabled),
+    view_url,
   };
 }
 
@@ -244,6 +265,28 @@ export function getRecipientRowActionLabel(_item: IndividualRecipientManagerItem
   return 'Edit eCard →';
 }
 
+export function getRecipientRowViewLabel(_item?: IndividualRecipientManagerItem): string {
+  return 'View eCard';
+}
+
+/**
+ * Public recipient View URL for a ready gift, or null when View should not be shown.
+ * Uses the same ready detection as the "eCard ready" subtitle.
+ */
+export function getRecipientManagerViewUrl(
+  item: IndividualRecipientManagerItem
+): string | null {
+  if (getBuyerFacingRecipientStatus(item) !== 'published') {
+    return null;
+  }
+  const url = item.view_url?.trim();
+  return url || null;
+}
+
+export function canViewRecipientEcard(item: IndividualRecipientManagerItem): boolean {
+  return Boolean(getRecipientManagerViewUrl(item));
+}
+
 export function getSelectedRecipientNumbers(
   selectedIds: Set<string>,
   items: IndividualRecipientManagerItem[]
@@ -265,11 +308,17 @@ export function assertSafeManagerItem(item: unknown): void {
     'message',
     'digital_card_id',
     'sender_links',
+    'edit_token',
   ];
   for (const key of forbidden) {
     if (key in (item as Record<string, unknown>)) {
       throw new Error(`Unsafe manager item field: ${key}`);
     }
+  }
+
+  const viewUrl = (item as { view_url?: unknown }).view_url;
+  if (typeof viewUrl === 'string' && viewUrl.includes('/e/')) {
+    throw new Error('Unsafe manager item field: view_url must not be an edit URL');
   }
 }
 

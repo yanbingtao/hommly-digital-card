@@ -32,6 +32,7 @@ function item(
     has_photo: false,
     has_sender_links: false,
     view_pin_enabled: false,
+    view_url: null,
     ...overrides,
   };
 }

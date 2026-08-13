@@ -1,12 +1,13 @@
 import fs from 'fs';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { formatRecipientNumber } from './card-recipients';
 import {
   buildIndividualEditPageContext,
 } from './edit-page-loader';
 import {
   assertSafeManagerItem,
+  canViewRecipientEcard,
   clearRecipientSelection,
   computeRecipientStatusCounts,
   filterRecipientsByUiStatus,
@@ -19,9 +20,11 @@ import {
   filterRecipientsByBuyerStatus,
   formatSelectedGiftCountLabel,
   getPublishedProgressPercent,
+  getRecipientManagerViewUrl,
   getRecipientPersonalisationStatus,
   getRecipientRowActionLabel,
   getRecipientRowSubtitle,
+  getRecipientRowViewLabel,
   getSelectAllToolbarState,
   getSelectedRecipientNumbers,
   selectAllRecipientIds,
@@ -31,6 +34,7 @@ import {
   toggleRecipientSelection,
   type IndividualRecipientManagerItem,
 } from './individual-recipient-manager';
+import { buildRecipientViewUrl } from './individual-card-urls';
 import { createCardCore } from './create-card-core';
 import { parseInternalCreateCardRequest } from './internal-card-request';
 import { isParentLifecycleExpired } from './recipient-view-resolver';
@@ -50,6 +54,7 @@ function item(
     has_photo: false,
     has_sender_links: false,
     view_pin_enabled: false,
+    view_url: null,
     ...overrides,
   };
 }
@@ -147,6 +152,7 @@ describe('recipient labels and ordering', () => {
     expect(getRecipientRowSubtitle(item(2, { status: 'published' }))).toBe('eCard ready');
     expect(getRecipientRowActionLabel(item(1))).toBe('Edit eCard →');
     expect(getRecipientRowActionLabel(item(2, { status: 'published' }))).toBe('Edit eCard →');
+    expect(getRecipientRowViewLabel()).toBe('View eCard');
   });
 
   it('formats select-all toolbar labels', () => {
@@ -293,7 +299,57 @@ describe('safe DTO mapping', () => {
       'has_photo',
       'has_sender_links',
       'view_pin_enabled',
+      'view_url',
     ]);
+    expect(dto.view_url).toBeNull();
+    expect(dto).not.toHaveProperty('view_token');
+  });
+
+  it('exposes recipient View URL only for published gifts', () => {
+    const unpublished = toIndividualRecipientManagerItem(
+      dbRecipient(2, { status: 'draft', view_token: 'viewTokDraft1' }),
+      'https://hommly.online'
+    );
+    expect(unpublished.view_url).toBeNull();
+    expect(canViewRecipientEcard(unpublished)).toBe(false);
+    expect(getRecipientManagerViewUrl(unpublished)).toBeNull();
+
+    const published = toIndividualRecipientManagerItem(
+      dbRecipient(1, { status: 'published', view_token: 'viewTokReady1' }),
+      'https://hommly.online'
+    );
+    const expected = buildRecipientViewUrl(
+      { view_token: 'viewTokReady1' },
+      'https://hommly.online'
+    );
+    expect(published.view_url).toBe(expected);
+    expect(published.view_url).toBe('https://hommly.online/g/viewTokReady1');
+    expect(canViewRecipientEcard(published)).toBe(true);
+    expect(getRecipientManagerViewUrl(published)).toBe(expected);
+    assertSafeManagerItem(published);
+    expect(published).not.toHaveProperty('view_token');
+    expect(published.view_url).not.toContain('/e/');
+  });
+
+  it('hides View when published but view_token is missing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const dto = toIndividualRecipientManagerItem(
+      dbRecipient(1, { status: 'published', view_token: '   ' }),
+      'https://hommly.online'
+    );
+    expect(dto.status).toBe('published');
+    expect(dto.view_url).toBeNull();
+    expect(canViewRecipientEcard(dto)).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('rejects edit URLs disguised as view_url', () => {
+    expect(() =>
+      assertSafeManagerItem(
+        item(1, { status: 'published', view_url: 'https://hommly.online/e/secret-edit-token' })
+      )
+    ).toThrow(/edit URL/i);
   });
 });
 
@@ -412,6 +468,40 @@ describe('expired individual parent blocks manager', () => {
       },
     };
     expect(isParentLifecycleExpired(card)).toBe(true);
+  });
+});
+
+describe('buyer View eCard action', () => {
+  it('row shows View only for ready gifts and opens recipient /g/ URL in a new tab', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'components/individual/RecipientManagerRow.tsx'),
+      'utf8'
+    );
+    const labels = fs.readFileSync(
+      path.join(ROOT, 'lib/individual-recipient-manager.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(/getRecipientManagerViewUrl/);
+    expect(source).toMatch(/canViewRecipientEcard/);
+    expect(source).toMatch(/getRecipientRowViewLabel/);
+    expect(source).toMatch(/getRecipientRowActionLabel/);
+    expect(labels).toMatch(/View eCard/);
+    expect(labels).toMatch(/Edit eCard →/);
+    expect(source).toMatch(/target="_blank"/);
+    expect(source).toMatch(/rel="noopener noreferrer"/);
+    expect(source).toMatch(/View \$\{title\} eCard/);
+    expect(source).not.toMatch(/\/e\/\$\{/);
+    expect(source).toMatch(/min-h-11/);
+    expect(source).toMatch(/sm:hidden/);
+  });
+
+  it('manager DTO builds View URLs via buildRecipientViewUrl', () => {
+    const source = fs.readFileSync(
+      path.join(ROOT, 'lib/individual-recipient-manager.ts'),
+      'utf8'
+    );
+    expect(source).toMatch(/buildRecipientViewUrl/);
+    expect(source).toMatch(/getBuyerFacingRecipientStatus/);
   });
 });
 

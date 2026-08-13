@@ -1,11 +1,14 @@
 'use client';
 
 import {
+  canViewRecipientEcard,
   formatBuyerFacingGiftBadge,
   formatBuyerFacingGiftTitle,
   getBuyerFacingRecipientStatus,
+  getRecipientManagerViewUrl,
   getRecipientRowActionLabel,
   getRecipientRowSubtitle,
+  getRecipientRowViewLabel,
   type IndividualRecipientManagerItem,
 } from '@/lib/individual-recipient-manager';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -35,6 +38,9 @@ export function RecipientManagerRow({
   const statusMeta = BUYER_STATUS_LABELS[uiStatus];
   const subtitle = getRecipientRowSubtitle(item);
   const actionLabel = getRecipientRowActionLabel(item);
+  const viewLabel = getRecipientRowViewLabel(item);
+  const viewUrl = getRecipientManagerViewUrl(item);
+  const showView = canViewRecipientEcard(item) && Boolean(viewUrl);
   const checkboxId = `gift-select-${item.id}`;
 
   return (
@@ -84,19 +90,39 @@ export function RecipientManagerRow({
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={`Edit eCard for ${title}`}
-        className={cn(
-          'inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-2.5 text-sm font-medium text-rose-600',
-          'transition-colors duration-200 motion-reduce:transition-none',
-          'hover:bg-rose-50 hover:text-rose-700',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2'
-        )}
-      >
-        {actionLabel}
-      </button>
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+        {showView && viewUrl ? (
+          <a
+            href={viewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View ${title} eCard (opens in a new tab)`}
+            className={cn(
+              'inline-flex min-h-11 items-center justify-center rounded-lg px-2 text-sm font-medium text-stone-600',
+              'transition-colors duration-200 motion-reduce:transition-none',
+              'hover:bg-stone-100 hover:text-stone-800',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400/40 focus-visible:ring-offset-2'
+            )}
+          >
+            <span className="sm:hidden">View</span>
+            <span className="hidden sm:inline">{viewLabel}</span>
+          </a>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Edit eCard for ${title}`}
+          className={cn(
+            'inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-2.5 text-sm font-medium text-rose-600',
+            'transition-colors duration-200 motion-reduce:transition-none',
+            'hover:bg-rose-50 hover:text-rose-700',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2'
+          )}
+        >
+          {actionLabel}
+        </button>
+      </div>
     </div>
   );
 }
