@@ -11,8 +11,8 @@ const mocks = vi.hoisted(() => ({
   getEffectiveExpiry: vi.fn(),
 }));
 
-vi.mock('./supabase', () => ({
-  getSupabase: () => ({ from: mocks.from }),
+vi.mock('./supabase-admin', () => ({
+  getSupabaseAdmin: () => ({ from: mocks.from }),
 }));
 
 vi.mock('./digital-card-media', () => ({

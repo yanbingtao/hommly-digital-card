@@ -18,8 +18,10 @@ import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
 import { createCardCore } from './create-card-core';
 import { createIndividualCardCore } from './create-individual-card-core';
 import {
+  aggregateAdminIndividualCardProgress,
   buildAdminIndividualRecipientItems,
   validateAdminIndividualRecipientQuantity,
+  type AdminIndividualCardProgress,
 } from './admin-card-helpers';
 import type {
   AdminCreateIndividualCardResult,
@@ -29,6 +31,8 @@ import type {
 import { getRecipientsForCard } from './card-recipients';
 import { buildBuyerEditUrl } from './individual-card-urls';
 import { getCanonicalSiteOrigin } from './internal-card-response';
+
+export type { AdminIndividualCardProgress };
 
 export async function createCard(data: {
   order_number: string;
@@ -101,28 +105,31 @@ export async function createIndividualCard(data: {
   }
 }
 
-async function fetchIndividualRecipientCounts(
-  supabase: ReturnType<typeof getSupabase>,
+/**
+ * Batched individual-card gift progress for Admin.
+ * Uses service-role client because digital_card_recipients has RLS with no anon policies.
+ */
+async function fetchIndividualCardProgress(
   cardIds: string[]
-): Promise<Record<string, number>> {
+): Promise<Record<string, AdminIndividualCardProgress>> {
   if (cardIds.length === 0) {
     return {};
   }
 
+  const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('digital_card_recipients')
-    .select('digital_card_id')
+    .select('digital_card_id, status, view_token')
     .in('digital_card_id', cardIds);
 
   if (error || !data) {
+    console.error('[getCards] individual recipient progress fetch failed', error?.message);
     return {};
   }
 
-  const counts: Record<string, number> = {};
-  for (const row of data as Array<{ digital_card_id: string }>) {
-    counts[row.digital_card_id] = (counts[row.digital_card_id] ?? 0) + 1;
-  }
-  return counts;
+  return aggregateAdminIndividualCardProgress(
+    data as Array<{ digital_card_id: string; status: string | null; view_token: string | null }>
+  );
 }
 
 export async function getAdminIndividualRecipients(cardId: string): Promise<{
@@ -167,31 +174,32 @@ export async function getAdminIndividualRecipients(cardId: string): Promise<{
 
 export async function getCards(): Promise<{
   cards: CardWithOrder[] | null;
-  recipientCounts: Record<string, number> | null;
+  individualProgress: Record<string, AdminIndividualCardProgress> | null;
   error: string | null;
 }> {
   try {
     await assertAdminAuthenticated();
-    const supabase = getSupabase();
+    // Service role + no-store fetch avoids stale Admin summaries after buyer publish.
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from('digital_cards')
       .select('*, order:orders(*)')
       .order('created_at', { ascending: false });
 
     if (error) {
-      return { cards: null, recipientCounts: null, error: error.message };
+      return { cards: null, individualProgress: null, error: error.message };
     }
 
     const cards = (data ?? []) as CardWithOrder[];
     const individualIds = cards.filter((card) => card.card_mode === 'individual').map((card) => card.id);
-    const recipientCounts = await fetchIndividualRecipientCounts(supabase, individualIds);
+    const individualProgress = await fetchIndividualCardProgress(individualIds);
 
-    return { cards, recipientCounts, error: null };
+    return { cards, individualProgress, error: null };
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'Unauthorized') {
-      return { cards: null, recipientCounts: null, error: 'Unauthorized. Please sign in again.' };
+      return { cards: null, individualProgress: null, error: 'Unauthorized. Please sign in again.' };
     }
-    return { cards: null, recipientCounts: null, error: getConnectionErrorMessage(err) };
+    return { cards: null, individualProgress: null, error: getConnectionErrorMessage(err) };
   }
 }
 

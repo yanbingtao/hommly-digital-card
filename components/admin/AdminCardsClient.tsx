@@ -1,9 +1,28 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { createCard, createIndividualCard, deleteCard, getCards, getAdminIndividualRecipients, reactivateCard, setCardExpiryOverride, runExpiredPhotoCleanup, adminRemoveCardPhoto } from '@/lib/actions';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  createCard,
+  createIndividualCard,
+  deleteCard,
+  getCards,
+  getAdminIndividualRecipients,
+  reactivateCard,
+  setCardExpiryOverride,
+  runExpiredPhotoCleanup,
+  adminRemoveCardPhoto,
+  type AdminIndividualCardProgress,
+} from '@/lib/actions';
 import type { AdminIndividualRecipientItem } from '@/lib/admin-card-types';
-import { getAdminCardTypeLabel, isIndividualCard } from '@/lib/admin-card-helpers';
+import {
+  emptyAdminIndividualCardProgress,
+  formatAdminIndividualReadySummary,
+  formatAdminRecipientViewLinksLabel,
+  getAdminCardTypeLabel,
+  getAdminIndividualDisplayStatus,
+  getAdminIndividualDisplayStatusLabel,
+  isIndividualCard,
+} from '@/lib/admin-card-helpers';
 import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDateTime,
@@ -46,7 +65,7 @@ import { cn } from '@/lib/utils';
 
 interface AdminCardsClientProps {
   initialCards: CardWithOrder[];
-  initialRecipientCounts: Record<string, number>;
+  initialIndividualProgress: Record<string, AdminIndividualCardProgress>;
   initialError: string | null;
 }
 
@@ -182,12 +201,14 @@ function CardQuickAction({
 
 export function AdminCardsClient({
   initialCards,
-  initialRecipientCounts,
+  initialIndividualProgress,
   initialError,
 }: AdminCardsClientProps) {
   const [cards, setCards] = useState<CardWithOrder[]>(initialCards);
-  const [recipientCounts, setRecipientCounts] = useState<Record<string, number>>(initialRecipientCounts);
+  const [individualProgress, setIndividualProgress] =
+    useState<Record<string, AdminIndividualCardProgress>>(initialIndividualProgress);
   const [loading, setLoading] = useState(false);
+  const cleanupInFlightRef = useRef(false);
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedCard, setSelectedCard] = useState<CardWithOrder | null>(null);
@@ -295,12 +316,12 @@ export function AdminCardsClient({
   const loadCards = useCallback(async () => {
     setLoading(true);
     try {
-      const { cards: data, recipientCounts: counts, error } = await getCards();
+      const { cards: data, individualProgress: progress, error } = await getCards();
       if (error) {
         toast.error('Failed to load cards: ' + error);
       } else {
         setCards(data || []);
-        setRecipientCounts(counts || {});
+        setIndividualProgress(progress || {});
       }
     } finally {
       setLoading(false);
@@ -352,7 +373,14 @@ export function AdminCardsClient({
 
     setForm({ order_number: '', card_type: 'shared', quantity: '' });
     setShowCreateForm(false);
-    setRecipientCounts((current) => ({ ...current, [result.card.id]: result.quantity }));
+    setIndividualProgress((current) => ({
+      ...current,
+      [result.card.id]: {
+        total_gifts: result.quantity,
+        published_gifts: 0,
+        recipient_view_links: 0,
+      },
+    }));
     await loadCards();
     setSelectedCard(result.card);
     setIndividualRecipients(result.recipients);
@@ -449,23 +477,37 @@ export function AdminCardsClient({
   };
 
   const handleCleanupExpiredPhotos = async () => {
+    if (cleanupInFlightRef.current || cleaningPhotos) return;
+    cleanupInFlightRef.current = true;
     setCleaningPhotos(true);
-    const { result, error } = await runExpiredPhotoCleanup();
-    if (error || !result) {
-      toast.error('Photo cleanup failed: ' + (error || 'Unknown error'));
+    try {
+      const { result, error } = await runExpiredPhotoCleanup();
+      if (error || !result) {
+        toast.error(error || 'Photo cleanup failed. Please try again.');
+        return;
+      }
+
+      await loadCards();
+
+      const description = [
+        `Expired cards checked: ${result.scanned}`,
+        `Cards cleaned: ${result.cleaned}`,
+        `Media deleted: ${result.mediaRowsDeleted}`,
+        `Storage files deleted: ${result.storageFilesDeleted}`,
+        `Legacy paths deleted: ${result.legacyPathsDeleted}`,
+        `Orphan media deleted: ${result.orphanMediaCleaned}`,
+        `Warnings: ${result.warnings.length}`,
+        `Failures: ${result.errors.length}`,
+      ].join('\n');
+
+      if (result.errors.length > 0) {
+        toast.warning('Photo cleanup finished with some failures', { description });
+      } else {
+        toast.success('Photo cleanup complete', { description });
+      }
+    } finally {
+      cleanupInFlightRef.current = false;
       setCleaningPhotos(false);
-      return;
-    }
-
-    await loadCards();
-    setCleaningPhotos(false);
-
-    if (result.errors.length > 0) {
-      toast.warning(
-        `Cleaned ${result.cleaned} of ${result.scanned} photo(s). ${result.errors.length} error(s).`
-      );
-    } else {
-      toast.success(`Cleaned ${result.cleaned} expired photo(s) from ${result.scanned} card(s).`);
     }
   };
 
@@ -535,10 +577,44 @@ export function AdminCardsClient({
         </span>
       );
     }
-    if (card.status === 'published') {
-      return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Published</span>;
+
+    if (isIndividualCard(card)) {
+      const progress = individualProgress[card.id] ?? emptyAdminIndividualCardProgress();
+      const status = getAdminIndividualDisplayStatus(progress);
+      const label = getAdminIndividualDisplayStatusLabel(status);
+      if (status === 'ready') {
+        return (
+          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+            {label}
+          </span>
+        );
+      }
+      if (status === 'in_progress') {
+        return (
+          <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+            {label}
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+          {label}
+        </span>
+      );
     }
-    return <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Draft</span>;
+
+    if (card.status === 'published') {
+      return (
+        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+          Published
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+        Draft
+      </span>
+    );
   };
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -565,7 +641,7 @@ export function AdminCardsClient({
               ) : (
                 <ImageIcon className="mr-1 h-4 w-4" />
               )}
-              Clean expired photos
+              {cleaningPhotos ? 'Cleaning…' : 'Clean expired photos'}
             </Button>
             <AdminLogoutButton />
             <Button onClick={() => setShowCreateForm(true)} size="sm" className="rounded-lg bg-rose-500 shadow-sm hover:bg-rose-600">
@@ -701,7 +777,9 @@ export function AdminCardsClient({
                 const recipientUrl = `${origin}/g/${card.public_token}`;
                 const expired = isCardExpired(card);
                 const individual = isIndividualCard(card);
-                const typeLabel = getAdminCardTypeLabel(card, recipientCounts[card.id]);
+                const progress =
+                  individualProgress[card.id] ?? emptyAdminIndividualCardProgress();
+                const typeLabel = getAdminCardTypeLabel(card, progress.total_gifts);
                 return (
                   <Card
                     key={card.id}
@@ -720,6 +798,11 @@ export function AdminCardsClient({
                             {typeLabel}
                             {expired ? ' · Links disabled' : ''}
                           </p>
+                          {individual ? (
+                            <p className="mt-0.5 text-[11px] text-stone-500">
+                              {formatAdminIndividualReadySummary(progress)}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
                           {getStatusBadge(card)}
@@ -746,7 +829,7 @@ export function AdminCardsClient({
                         />
                         {individual ? (
                           <p className="px-1 text-[11px] text-stone-500">
-                            {recipientCounts[card.id] ?? 0} recipient view links in card details
+                            {formatAdminRecipientViewLinksLabel(progress.recipient_view_links)}
                           </p>
                         ) : (
                           <CardLinkRow
@@ -846,12 +929,23 @@ export function AdminCardsClient({
                     </dd>
                   </div>
                   {isIndividualCard(selectedCard) ? (
-                    <div className="flex justify-between gap-3">
-                      <dt className="text-stone-500">Quantity</dt>
-                      <dd className="text-right font-medium">
-                        {recipientCounts[selectedCard.id] ?? individualRecipients?.length ?? 0}
-                      </dd>
-                    </div>
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-stone-500">Quantity</dt>
+                        <dd className="text-right font-medium">
+                          {(individualProgress[selectedCard.id] ?? emptyAdminIndividualCardProgress())
+                            .total_gifts || individualRecipients?.length || 0}
+                        </dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-stone-500">Ready</dt>
+                        <dd className="text-right font-medium">
+                          {formatAdminIndividualReadySummary(
+                            individualProgress[selectedCard.id] ?? emptyAdminIndividualCardProgress()
+                          )}
+                        </dd>
+                      </div>
+                    </>
                   ) : null}
                 </dl>
               </div>

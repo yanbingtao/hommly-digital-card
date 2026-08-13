@@ -5,7 +5,7 @@ import {
   listDigitalCardMediaForCard,
 } from './digital-card-media';
 import { deleteCardPhoto, clearCardPhotoMetadata, logPhotoCleanupIssue } from './card-photo-storage';
-import { getSupabase } from './supabase';
+import { getSupabaseAdmin } from './supabase-admin';
 import type { CardWithOrder, DigitalCardMedia } from './types';
 
 export const ORPHAN_MEDIA_SAFE_AGE_MS = 24 * 60 * 60 * 1000;
@@ -35,7 +35,7 @@ function emptyResult(): PhotoCleanupResult {
 }
 
 async function cleanupLegacyRecipientPhotoPaths(
-  supabase: ReturnType<typeof getSupabase>,
+  supabase: ReturnType<typeof getSupabaseAdmin>,
   digitalCardId: string
 ): Promise<{ deleted: number; errors: string[] }> {
   const { data, error } = await supabase
@@ -93,7 +93,8 @@ async function cleanupLegacyRecipientPhotoPaths(
 export async function cleanupOrphanDigitalCardMedia(
   olderThanMs = ORPHAN_MEDIA_SAFE_AGE_MS
 ): Promise<{ cleaned: number; errors: string[]; warnings: string[] }> {
-  const supabase = getSupabase();
+  // Service role required: digital_card_media / recipients have RLS with no anon policies.
+  const supabase = getSupabaseAdmin();
   const cutoff = new Date(Date.now() - olderThanMs).toISOString();
 
   const { data, error } = await supabase
@@ -128,7 +129,8 @@ export async function cleanupOrphanDigitalCardMedia(
 }
 
 export async function cleanupExpiredCardPhotos(): Promise<PhotoCleanupResult> {
-  const supabase = getSupabase();
+  // Service role required for recipient/media rows and consistent Admin + Cron cleanup.
+  const supabase = getSupabaseAdmin();
   const result = emptyResult();
 
   const { data, error } = await supabase
@@ -230,6 +232,6 @@ export async function cleanupExpiredCardPhotos(): Promise<PhotoCleanupResult> {
 
 /** Kept for diagnostics / future Storage listing sweeps. */
 export async function listMediaRowsForCard(digitalCardId: string) {
-  const supabase = getSupabase();
+  const supabase = getSupabaseAdmin();
   return listDigitalCardMediaForCard(supabase, digitalCardId);
 }
