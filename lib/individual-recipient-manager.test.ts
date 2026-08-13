@@ -437,7 +437,14 @@ describe('buildIndividualEditPageContext', () => {
 
   it('blocks expired individual parent before manager render', () => {
     const result = buildIndividualEditPageContext(
-      individualCard({ first_published_at: '2020-01-01T00:00:00.000Z' }),
+      individualCard({
+        order: {
+          id: 'ord-ind',
+          order_number: 'IND-001',
+          created_at: '2020-01-01T00:00:00.000Z',
+          ordered_at: '2020-01-01T00:00:00.000Z',
+        },
+      }),
       [dbRecipient(1)]
     );
     expect(result.kind).toBe('expired');
@@ -445,7 +452,7 @@ describe('buildIndividualEditPageContext', () => {
 });
 
 describe('expired individual parent blocks manager', () => {
-  it('uses parent lifecycle expiry for individual cards', () => {
+  it('uses parent order-date lifecycle expiry for individual cards', () => {
     const card: CardWithOrder = {
       id: 'card-ind',
       order_id: 'ord-ind',
@@ -459,12 +466,13 @@ describe('expired individual parent blocks manager', () => {
       created_at: '2026-08-12T06:00:00.000Z',
       updated_at: '2026-08-12T06:00:00.000Z',
       published_at: null,
-      first_published_at: '2020-01-01T00:00:00.000Z',
+      first_published_at: null,
       expires_at_override: null,
       order: {
         id: 'ord-ind',
         order_number: 'IND-001',
-        created_at: '2026-08-12T06:00:00.000Z',
+        created_at: '2020-01-01T00:00:00.000Z',
+        ordered_at: '2020-01-01T00:00:00.000Z',
       },
     };
     expect(isParentLifecycleExpired(card)).toBe(true);

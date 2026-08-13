@@ -32,6 +32,8 @@ export type CreateCardCoreInput = {
   orderNumberInput: string;
   platform?: string | null;
   externalOrderId?: string | null;
+  /** Optional business order timestamp; defaults to now (same as orders.created_at). */
+  orderedAt?: string | Date | null;
 };
 
 export type CreateCardCoreSuccess = {
@@ -90,10 +92,25 @@ export async function createCardCore(
   }
 
   const orderNumber = buildOrderNumber(orderNumberInput);
+  let orderedAt = new Date().toISOString();
+  if (input.orderedAt instanceof Date) {
+    if (Number.isNaN(input.orderedAt.getTime())) {
+      return { ok: false, error: 'orderedAt is invalid' };
+    }
+    orderedAt = input.orderedAt.toISOString();
+  } else if (typeof input.orderedAt === 'string' && input.orderedAt.trim()) {
+    const parsed = new Date(input.orderedAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: 'orderedAt is invalid' };
+    }
+    orderedAt = parsed.toISOString();
+  }
+
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
       order_number: orderNumber,
+      ordered_at: orderedAt,
     })
     .select()
     .single();

@@ -269,16 +269,32 @@ describe('recipient view availability', () => {
     ).toBe(true);
   });
 
-  it('marks Individual recipient unavailable when parent expired', () => {
-    const expiredAt = addMonths(new Date(), -7).toISOString();
-    const parent = individualParent({ first_published_at: expiredAt, published_at: expiredAt });
+  it('marks Individual recipient unavailable when parent expired by order date', () => {
+    const oldOrder = addMonths(new Date(), -7).toISOString();
+    const parent = individualParent({
+      first_published_at: addMonths(new Date(), -1).toISOString(),
+      published_at: addMonths(new Date(), -1).toISOString(),
+      order: {
+        id: 'ord-ind',
+        order_number: 'IND-001',
+        created_at: oldOrder,
+        ordered_at: oldOrder,
+      },
+    });
     expect(isIndividualRecipientViewAvailable(parent, recipient(1, 'indRecipTok1'))).toBe(false);
   });
 
   it('applies parent expiry override to Individual recipient', () => {
+    const oldOrder = addMonths(new Date(), -8).toISOString();
     const parent = individualParent({
-      first_published_at: addMonths(new Date(), -8).toISOString(),
+      first_published_at: oldOrder,
       expires_at_override: addMonths(new Date(), 2).toISOString(),
+      order: {
+        id: 'ord-ind',
+        order_number: 'IND-001',
+        created_at: oldOrder,
+        ordered_at: oldOrder,
+      },
     });
     expect(isIndividualRecipientViewAvailable(parent, recipient(1, 'indRecipTok1'))).toBe(true);
   });

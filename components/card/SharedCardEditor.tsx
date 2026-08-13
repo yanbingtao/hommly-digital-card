@@ -12,7 +12,7 @@ import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDate,
   formatCardTimeRemaining,
-  formatFirstPublishedDateTime,
+  formatOrderDate,
   hasExpiryOverride,
   isCardExpired,
 } from '@/lib/card-expiry';
@@ -206,7 +206,7 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
   };
 
   const expiryDate = formatCardExpiryDate(card);
-  const firstPublishedAt = formatFirstPublishedDateTime(card);
+  const orderDate = formatOrderDate(card);
   const timeRemaining = formatCardTimeRemaining(card);
 
   return (
@@ -236,14 +236,19 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
                 <p className="font-medium text-stone-700">Link availability</p>
                 {expiryDate ? (
                   <>
-                    {firstPublishedAt && (
+                    {orderDate && (
                       <p className="mt-1 text-stone-600">
-                        First published{' '}
-                        <span className="font-medium">{firstPublishedAt}</span>
+                        Order date <span className="font-medium">{orderDate}</span>
                       </p>
                     )}
                     <p className="mt-1 text-stone-600">
                       Available until <span className="font-medium">{expiryDate}</span>
+                      {!hasExpiryOverride(card) ? (
+                        <span className="text-stone-500">
+                          {' '}
+                          ({CARD_AVAILABILITY_MONTHS} months from order date)
+                        </span>
+                      ) : null}
                     </p>
                     {timeRemaining && (
                       <p className="mt-0.5 text-xs text-stone-500">
@@ -251,11 +256,14 @@ export function SharedCardEditor({ editToken }: { editToken: string }) {
                         {hasExpiryOverride(card) ? ' (custom expiry)' : ''}
                       </p>
                     )}
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      Publishing or editing does not extend this period.
+                    </p>
                   </>
                 ) : (
                   <p className="mt-1 text-stone-600">
-                    After you publish, this card stays available for {CARD_AVAILABILITY_MONTHS} months.
-                    Republishing does not extend the time.
+                    Your eCard stays available for {CARD_AVAILABILITY_MONTHS} months from the order
+                    date. Publishing does not extend the time.
                   </p>
                 )}
               </div>

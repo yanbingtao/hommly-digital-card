@@ -115,14 +115,14 @@ describe('Admin individual card progress', () => {
 });
 
 describe('Admin cleanup + progress wiring', () => {
-  it('Clean expired photos uses admin-authenticated cleanup core', () => {
+  it('Clear expired cards & photos uses admin-authenticated cleanup core', () => {
     const actions = fs.readFileSync(path.join(ROOT, 'lib/actions.ts'), 'utf8');
     const cleanupFn = actions.slice(
       actions.indexOf('export async function runExpiredPhotoCleanup'),
       actions.indexOf('export async function adminRemoveCardPhoto')
     );
     expect(cleanupFn).toMatch(/assertAdminAuthenticated/);
-    expect(cleanupFn).toMatch(/cleanupExpiredCardPhotos/);
+    expect(cleanupFn).toMatch(/cleanupExpiredCardsAndPhotos/);
 
     const client = fs.readFileSync(
       path.join(ROOT, 'components/admin/AdminCardsClient.tsx'),
@@ -130,8 +130,10 @@ describe('Admin cleanup + progress wiring', () => {
     );
     expect(client).toMatch(/runExpiredPhotoCleanup/);
     expect(client).toMatch(/cleanupInFlightRef/);
-    expect(client).toMatch(/Cleaning…/);
-    expect(client).toMatch(/Photo cleanup complete/);
+    expect(client).toMatch(/Clearing…/);
+    expect(client).toMatch(/Clear expired cards & photos/);
+    expect(client).toMatch(/Delete expired cards and photos\?/);
+    expect(client).toMatch(/Cleanup complete/);
     expect(client).not.toMatch(/scheduled-photo-cleanup/);
     expect(client).not.toMatch(/netlify\/functions/);
   });

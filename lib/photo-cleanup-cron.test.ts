@@ -10,11 +10,12 @@ import {
 const ROOT = path.join(__dirname, '..');
 
 const mocks = vi.hoisted(() => ({
-  cleanupExpiredCardPhotos: vi.fn(),
+  cleanupExpiredCardsAndPhotos: vi.fn(),
 }));
 
 vi.mock('@/lib/card-photo-cleanup', () => ({
-  cleanupExpiredCardPhotos: mocks.cleanupExpiredCardPhotos,
+  cleanupExpiredCardsAndPhotos: mocks.cleanupExpiredCardsAndPhotos,
+  cleanupExpiredCardPhotos: mocks.cleanupExpiredCardsAndPhotos,
 }));
 
 describe('verifyCronRequest', () => {
@@ -97,9 +98,11 @@ describe('/api/internal/photo-cleanup cron route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = 'abc123';
-    mocks.cleanupExpiredCardPhotos.mockResolvedValue({
+    mocks.cleanupExpiredCardsAndPhotos.mockResolvedValue({
       scanned: 2,
       cleaned: 1,
+      expiredCardsDeleted: 1,
+      recipientsDeleted: 3,
       mediaRowsDeleted: 1,
       storageFilesDeleted: 1,
       legacyPathsDeleted: 0,
@@ -124,7 +127,9 @@ describe('/api/internal/photo-cleanup cron route', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.ok).toBe(true);
-    expect(mocks.cleanupExpiredCardPhotos).toHaveBeenCalledTimes(1);
+    expect(body.expiredCardsDeleted).toBe(1);
+    expect(body.recipientsDeleted).toBe(3);
+    expect(mocks.cleanupExpiredCardsAndPhotos).toHaveBeenCalledTimes(1);
   });
 
   it('returns 401 for wrong secret', async () => {
@@ -135,14 +140,14 @@ describe('/api/internal/photo-cleanup cron route', () => {
       })
     );
     expect(response.status).toBe(401);
-    expect(mocks.cleanupExpiredCardPhotos).not.toHaveBeenCalled();
+    expect(mocks.cleanupExpiredCardsAndPhotos).not.toHaveBeenCalled();
   });
 
   it('returns 401 when Authorization is missing', async () => {
     const { GET } = await import('../app/api/internal/photo-cleanup/route');
     const response = await GET(new Request('https://hommly.online/api/internal/photo-cleanup'));
     expect(response.status).toBe(401);
-    expect(mocks.cleanupExpiredCardPhotos).not.toHaveBeenCalled();
+    expect(mocks.cleanupExpiredCardsAndPhotos).not.toHaveBeenCalled();
   });
 
   it('returns 503 when CRON_SECRET is missing from server config', async () => {
@@ -157,7 +162,7 @@ describe('/api/internal/photo-cleanup cron route', () => {
     expect(response.status).toBe(503);
     const body = await response.json();
     expect(body.code).toBe('CRON_SECRET_NOT_CONFIGURED');
-    expect(mocks.cleanupExpiredCardPhotos).not.toHaveBeenCalled();
+    expect(mocks.cleanupExpiredCardsAndPhotos).not.toHaveBeenCalled();
   });
 
   it('returns 401 for Basic scheme', async () => {
@@ -181,11 +186,11 @@ describe('/api/internal/photo-cleanup cron route', () => {
 
     expect((await request()).status).toBe(200);
     expect((await request()).status).toBe(200);
-    expect(mocks.cleanupExpiredCardPhotos).toHaveBeenCalledTimes(2);
+    expect(mocks.cleanupExpiredCardsAndPhotos).toHaveBeenCalledTimes(2);
   });
 
   it('returns 500 when cleanup core throws', async () => {
-    mocks.cleanupExpiredCardPhotos.mockRejectedValueOnce(new Error('db unavailable'));
+    mocks.cleanupExpiredCardsAndPhotos.mockRejectedValueOnce(new Error('db unavailable'));
     const { POST } = await import('../app/api/internal/photo-cleanup/route');
     const response = await POST(
       new Request('https://hommly.online/api/internal/photo-cleanup', {

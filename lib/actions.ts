@@ -12,7 +12,7 @@ import {
   resolveRecipientViewToken,
 } from './recipient-view-resolver';
 import { getReactivationExpiryDate } from './card-expiry';
-import { cleanupExpiredCardPhotos } from './card-photo-cleanup';
+import { cleanupExpiredCardsAndPhotos } from './card-photo-cleanup';
 import { deleteIndividualCardMediaStorage } from './digital-card-media';
 import { deleteCardPhoto, clearCardPhotoMetadata } from './card-photo-storage';
 import { createCardCore } from './create-card-core';
@@ -465,12 +465,12 @@ export async function reactivateCard(
 }
 
 export async function runExpiredPhotoCleanup(): Promise<{
-  result: Awaited<ReturnType<typeof cleanupExpiredCardPhotos>> | null;
+  result: Awaited<ReturnType<typeof cleanupExpiredCardsAndPhotos>> | null;
   error: string | null;
 }> {
   try {
     await assertAdminAuthenticated();
-    const result = await cleanupExpiredCardPhotos();
+    const result = await cleanupExpiredCardsAndPhotos();
     return { result, error: null };
   } catch (err: unknown) {
     if (err instanceof Error && err.message === 'Unauthorized') {

@@ -32,7 +32,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'How long is my eCard available?',
-    answer: `Your eCard stays available for ${ECARD_AVAILABILITY_MONTHS} months from when it is first published, unless a different expiry is set for that card.`,
+    answer: `Your Hommly eCard stays available for ${ECARD_AVAILABILITY_MONTHS} months from your order date, unless a different expiry date is set for your card.`,
   },
   {
     question: 'Can I protect my eCard with a PIN?',

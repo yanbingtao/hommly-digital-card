@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { logCronAuthDiagnostics, verifyCronRequest } from '@/lib/automation-auth';
-import { cleanupExpiredCardPhotos } from '@/lib/card-photo-cleanup';
+import { cleanupExpiredCardsAndPhotos } from '@/lib/card-photo-cleanup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Daily photo cleanup endpoint.
+ * Daily lifecycle cleanup endpoint (expired cards + photos + orphan media).
  * Invoked by Vercel Cron (GET) with `Authorization: Bearer <CRON_SECRET>`.
  * Safe to call more than once (idempotent cleanup core).
  */
@@ -35,11 +35,13 @@ async function runCleanup(request: Request) {
   });
 
   try {
-    const result = await cleanupExpiredCardPhotos();
+    const result = await cleanupExpiredCardsAndPhotos();
     return NextResponse.json({
       ok: true,
       scanned: result.scanned,
+      expiredCardsDeleted: result.expiredCardsDeleted,
       cleaned: result.cleaned,
+      recipientsDeleted: result.recipientsDeleted,
       mediaRowsDeleted: result.mediaRowsDeleted,
       storageFilesDeleted: result.storageFilesDeleted,
       legacyPathsDeleted: result.legacyPathsDeleted,

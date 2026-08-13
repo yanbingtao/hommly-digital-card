@@ -31,6 +31,8 @@ import {
   CARD_AVAILABILITY_MONTHS,
   formatCardExpiryDateTime,
   formatFirstPublishedDateTime,
+  formatOrderDateTime,
+  formatDefaultOrderExpiryDateTime,
   formatStoredExpiryOverride,
   formatEffectiveExpiryDateTime,
   getCardExpiresAt,
@@ -226,6 +228,7 @@ export function AdminCardsClient({
   const [savingExpiry, setSavingExpiry] = useState(false);
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
   const [cleaningPhotos, setCleaningPhotos] = useState(false);
+  const [confirmCleanupOpen, setConfirmCleanupOpen] = useState(false);
   const [removingPhotoId, setRemovingPhotoId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -518,31 +521,33 @@ export function AdminCardsClient({
   const handleCleanupExpiredPhotos = async () => {
     if (cleanupInFlightRef.current || cleaningPhotos) return;
     cleanupInFlightRef.current = true;
+    setConfirmCleanupOpen(false);
     setCleaningPhotos(true);
     try {
       const { result, error } = await runExpiredPhotoCleanup();
       if (error || !result) {
-        toast.error(error || 'Photo cleanup failed. Please try again.');
+        toast.error(error || 'Cleanup failed. Please try again.');
         return;
       }
 
       await loadCards();
 
       const description = [
-        `Expired cards checked: ${result.scanned}`,
-        `Cards cleaned: ${result.cleaned}`,
-        `Media deleted: ${result.mediaRowsDeleted}`,
+        `Cards scanned: ${result.scanned}`,
+        `Expired cards deleted: ${result.expiredCardsDeleted}`,
+        `Recipients/gifts deleted: ${result.recipientsDeleted}`,
+        `Media rows deleted: ${result.mediaRowsDeleted}`,
         `Storage files deleted: ${result.storageFilesDeleted}`,
         `Legacy paths deleted: ${result.legacyPathsDeleted}`,
-        `Orphan media deleted: ${result.orphanMediaCleaned}`,
+        `Orphan media cleaned: ${result.orphanMediaCleaned}`,
         `Warnings: ${result.warnings.length}`,
         `Failures: ${result.errors.length}`,
       ].join('\n');
 
       if (result.errors.length > 0) {
-        toast.warning('Photo cleanup finished with some failures', { description });
+        toast.warning('Cleanup finished with some failures', { description });
       } else {
-        toast.success('Photo cleanup complete', { description });
+        toast.success('Cleanup complete', { description });
       }
     } finally {
       cleanupInFlightRef.current = false;
@@ -673,14 +678,14 @@ export function AdminCardsClient({
               size="sm"
               className="rounded-lg"
               disabled={cleaningPhotos}
-              onClick={() => void handleCleanupExpiredPhotos()}
+              onClick={() => setConfirmCleanupOpen(true)}
             >
               {cleaningPhotos ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
               ) : (
                 <ImageIcon className="mr-1 h-4 w-4" />
               )}
-              {cleaningPhotos ? 'Cleaning…' : 'Clean expired photos'}
+              {cleaningPhotos ? 'Clearing…' : 'Clear expired cards & photos'}
             </Button>
             <AdminLogoutButton />
             <Button onClick={() => setShowCreateForm(true)} size="sm" className="rounded-lg bg-rose-500 shadow-sm hover:bg-rose-600">
@@ -1054,18 +1059,22 @@ export function AdminCardsClient({
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Availability</p>
                 <dl className="mt-2 space-y-1.5 text-stone-700">
                   <div className="flex justify-between gap-3">
+                    <dt className="text-stone-500">Order date</dt>
+                    <dd className="text-right font-medium">
+                      {formatOrderDateTime(selectedCard) ?? '—'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
                     <dt className="text-stone-500">First published</dt>
                     <dd className="text-right font-medium">
                       {formatFirstPublishedDateTime(selectedCard) ?? 'Not published yet'}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <dt className="text-stone-500">Default expiry</dt>
+                    <dt className="text-stone-500">Default eCard expiry</dt>
                     <dd className="text-right font-medium">
-                      {formatCardExpiryDateTime(selectedCard) ??
-                        (selectedCard.first_published_at
-                          ? formatEffectiveExpiryDateTime(selectedCard)
-                          : '6 months after first publish')}
+                      {formatDefaultOrderExpiryDateTime(selectedCard) ??
+                        `${CARD_AVAILABILITY_MONTHS} months from order date`}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
@@ -1427,15 +1436,14 @@ export function AdminCardsClient({
                     Custom until{' '}
                     <span className="font-medium">{formatStoredExpiryOverride(cardForExpiry)}</span>
                   </p>
-                ) : cardForExpiry.status === 'published' ? (
+                ) : (
                   <p className="mt-1 text-stone-700">
                     Default rule — until{' '}
                     <span className="font-medium">{formatCardExpiryDateTime(cardForExpiry)}</span>
-                    <span className="text-stone-500"> (6 months from first publish)</span>
-                  </p>
-                ) : (
-                  <p className="mt-1 text-stone-700">
-                    Not published yet — default is 6 months from first publish.
+                    <span className="text-stone-500">
+                      {' '}
+                      ({CARD_AVAILABILITY_MONTHS} months from order date)
+                    </span>
                   </p>
                 )}
               </div>
@@ -1449,7 +1457,8 @@ export function AdminCardsClient({
                   onChange={(e) => setExpiryInput(e.target.value)}
                 />
                 <p className="text-xs text-stone-500">
-                  Overrides the default 6-month period. The card is removed after this date.
+                  Overrides the default {CARD_AVAILABILITY_MONTHS}-month order-date period. Hard
+                  cleanup runs one month after the effective expiry.
                 </p>
               </div>
 
@@ -1492,6 +1501,39 @@ export function AdminCardsClient({
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmCleanupOpen}
+        onOpenChange={(open) => {
+          if (!cleaningPhotos) {
+            setConfirmCleanupOpen(open);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete expired cards and photos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete eCards older than 7 months, including messages, photos,
+              links and PIN data. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cleaningPhotos}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cleaningPhotos}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleCleanupExpiredPhotos();
+              }}
+            >
+              {cleaningPhotos ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete expired data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={!!cardToDelete}

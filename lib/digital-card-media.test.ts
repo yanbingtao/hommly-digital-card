@@ -559,10 +559,11 @@ describe('parent delete and cleanup architecture', () => {
     expect(source).toMatch(/deleteIndividualCardMediaStorage/);
   });
 
-  it('expiry cleanup handles Individual media', () => {
+  it('expiry cleanup hard-deletes card media via storage + order cascade', () => {
     const source = fs.readFileSync(path.join(ROOT, 'lib/card-photo-cleanup.ts'), 'utf8');
-    expect(source).toMatch(/deleteAllDigitalCardMediaForCard/);
-    expect(source).toMatch(/card_mode === 'individual'/);
+    expect(source).toMatch(/listDigitalCardMediaForCard/);
+    expect(source).toMatch(/hardDeleteEligibleCard/);
+    expect(source).toMatch(/from\('orders'\)\.delete\(\)/);
   });
 });
 

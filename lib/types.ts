@@ -6,6 +6,8 @@ export interface Order {
   id: string;
   order_number: string;
   created_at: string;
+  /** Business order date for eCard lifecycle (availability + cleanup). */
+  ordered_at?: string;
 }
 
 export interface DigitalCard {

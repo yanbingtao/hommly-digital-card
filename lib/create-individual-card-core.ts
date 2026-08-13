@@ -49,6 +49,8 @@ export type CreateIndividualCardCoreInput = {
   recipientCount: number;
   platform?: string | null;
   externalOrderId?: string | null;
+  /** Optional business order timestamp; defaults to now. */
+  orderedAt?: string | Date | null;
   now?: Date;
   tokenFactory?: () => string;
   recipientTokenFactory?: () => string;
@@ -238,9 +240,24 @@ export async function createIndividualCardCore(
   }
 
   const orderNumber = buildOrderNumber(orderNumberInput, now);
+  const orderedAtRaw = input.orderedAt ?? now;
+  const orderedAt =
+    orderedAtRaw instanceof Date
+      ? orderedAtRaw.toISOString()
+      : typeof orderedAtRaw === 'string' && orderedAtRaw.trim()
+        ? new Date(orderedAtRaw).toISOString()
+        : now.toISOString();
+  if (Number.isNaN(Date.parse(orderedAt))) {
+    return {
+      ok: false,
+      code: INDIVIDUAL_ERROR.FAILED_TO_CREATE_ORDER,
+      message: 'orderedAt is invalid',
+    };
+  }
+
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .insert({ order_number: orderNumber })
+    .insert({ order_number: orderNumber, ordered_at: orderedAt })
     .select()
     .single();
 
