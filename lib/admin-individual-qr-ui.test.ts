@@ -106,18 +106,18 @@ describe('buyer-facing recipient manager presentation', () => {
     ]);
   });
 
-  it('uses Edit Selected Gift for one selection', () => {
-    expect(getBatchEditActionLabel(1)).toBe('Edit Selected Gift');
+  it('uses Personalise selected for one selection', () => {
+    expect(getBatchEditActionLabel(1)).toBe('Personalise selected →');
   });
 
-  it('uses Batch Edit for multiple selections', () => {
-    expect(getBatchEditActionLabel(2)).toBe('Batch Edit');
-    expect(getBatchEditActionLabel(37)).toBe('Batch Edit');
+  it('uses Personalise selected for multiple selections', () => {
+    expect(getBatchEditActionLabel(2)).toBe('Personalise selected →');
+    expect(getBatchEditActionLabel(37)).toBe('Personalise selected →');
   });
 
   it('formats selected gift count grammar', () => {
-    expect(formatSelectedGiftCountLabel(1)).toBe('1 Gift Selected');
-    expect(formatSelectedGiftCountLabel(3)).toBe('3 Gifts Selected');
+    expect(formatSelectedGiftCountLabel(1)).toBe('1 gift selected');
+    expect(formatSelectedGiftCountLabel(3)).toBe('3 gifts selected');
   });
 });
 
@@ -158,20 +158,30 @@ describe('Individual Recipient Manager UI guards', () => {
       path.join(ROOT, 'components/individual/IndividualRecipientManager.tsx'),
       'utf8'
     );
+    const labelSource = fs.readFileSync(
+      path.join(ROOT, 'lib/individual-recipient-manager.ts'),
+      'utf8'
+    );
     expect(managerSource).not.toMatch(/Draft:/);
     expect(managerSource).not.toMatch(/id: 'draft'/);
-    expect(managerSource).toMatch(/Not started:/);
+    expect(managerSource).toMatch(/To personalise/);
     expect(managerSource).toMatch(/getBatchEditActionLabel/);
     expect(managerSource).toMatch(/batchEditLabel/);
-    expect(managerSource).not.toMatch(/Personalise Selected/);
+    expect(labelSource).toMatch(/Personalise selected/);
   });
 
-  it('row-level Edit remains', () => {
+  it('row-level Edit remains for ready gifts', () => {
     const rowSource = fs.readFileSync(
       path.join(ROOT, 'components/individual/RecipientManagerRow.tsx'),
       'utf8'
     );
-    expect(rowSource).toMatch(/>\s*Edit\s*</);
+    const labelSource = fs.readFileSync(
+      path.join(ROOT, 'lib/individual-recipient-manager.ts'),
+      'utf8'
+    );
+    expect(rowSource).toMatch(/getRecipientRowActionLabel/);
+    expect(labelSource).toMatch(/Edit →/);
+    expect(labelSource).toMatch(/Personalise →/);
     expect(rowSource).not.toMatch(/\bDraft\b/);
   });
 });

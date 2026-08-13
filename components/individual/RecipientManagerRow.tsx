@@ -1,18 +1,20 @@
 'use client';
 
-import { formatRecipientNumber } from '@/lib/card-recipients';
+import { Check } from 'lucide-react';
 import {
+  formatBuyerFacingGiftBadge,
+  formatBuyerFacingGiftTitle,
   getBuyerFacingRecipientStatus,
+  getRecipientRowActionLabel,
   getRecipientRowSubtitle,
   type IndividualRecipientManagerItem,
 } from '@/lib/individual-recipient-manager';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const BUYER_STATUS_LABELS = {
-  published: { emoji: '✅', text: 'Published' },
-  not_started: { emoji: '⚪', text: 'Not started' },
+  published: { text: 'Ready' },
+  not_started: { text: 'To personalise' },
 } as const;
 
 type RecipientManagerRowProps = {
@@ -28,47 +30,76 @@ export function RecipientManagerRow({
   onCheckedChange,
   onEdit,
 }: RecipientManagerRowProps) {
-  const label = formatRecipientNumber(item.recipient_number);
+  const title = formatBuyerFacingGiftTitle(item.recipient_number);
+  const badge = formatBuyerFacingGiftBadge(item.recipient_number);
   const uiStatus = getBuyerFacingRecipientStatus(item);
+  const isReady = uiStatus === 'published';
   const statusMeta = BUYER_STATUS_LABELS[uiStatus];
   const subtitle = getRecipientRowSubtitle(item);
+  const actionLabel = getRecipientRowActionLabel(item);
+  const checkboxId = `gift-select-${item.id}`;
 
   return (
-    <div className="flex items-start gap-3 border-b border-stone-100 px-1 py-3 last:border-b-0">
+    <div
+      className={cn(
+        'group flex items-center gap-3 px-3 py-4 transition-colors duration-200 motion-reduce:transition-none sm:gap-4 sm:px-5 sm:py-5',
+        checked
+          ? 'bg-rose-50/70'
+          : 'bg-transparent hover:bg-stone-50/80'
+      )}
+    >
       <Checkbox
-        id={`gift-select-${item.id}`}
+        id={checkboxId}
         checked={checked}
         onCheckedChange={onCheckedChange}
-        aria-label={`Select ${label}`}
-        className="mt-1"
+        aria-label={`Select ${title}`}
+        className={cn(
+          'h-5 w-5 rounded-[5px] border-stone-300 shadow-none transition-colors duration-200 motion-reduce:transition-none',
+          'data-[state=checked]:border-rose-500 data-[state=checked]:bg-rose-500 data-[state=checked]:text-white',
+          'focus-visible:ring-rose-400/40'
+        )}
       />
 
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label
-            htmlFor={`gift-select-${item.id}`}
-            className="cursor-pointer text-sm font-semibold text-stone-800"
-          >
-            {label}
-          </label>
-          <span className="shrink-0 text-xs font-medium text-stone-600" aria-label={`Status: ${statusMeta.text}`}>
-            <span aria-hidden="true">{statusMeta.emoji} </span>
-            {statusMeta.text}
-          </span>
-        </div>
-        {subtitle ? <p className="mt-0.5 text-xs text-stone-500">{subtitle}</p> : null}
+      <div
+        className={cn(
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-medium tabular-nums transition-colors duration-200 motion-reduce:transition-none',
+          isReady
+            ? 'bg-rose-100/80 text-rose-700'
+            : 'bg-stone-100 text-stone-600'
+        )}
+        aria-hidden="true"
+      >
+        {isReady ? <Check className="h-4 w-4 stroke-[2.5]" /> : badge}
       </div>
 
-      <Button
+      <div className="min-w-0 flex-1">
+        <label
+          htmlFor={checkboxId}
+          className="cursor-pointer text-[15px] font-semibold tracking-tight text-stone-900"
+        >
+          {title}
+        </label>
+        <p
+          className="mt-0.5 text-sm text-stone-500"
+          aria-label={`Status: ${statusMeta.text}`}
+        >
+          {subtitle}
+        </p>
+      </div>
+
+      <button
         type="button"
-        variant="outline"
-        size="sm"
-        className="shrink-0"
         onClick={onEdit}
-        aria-label={`Edit ${label}`}
+        aria-label={`${actionLabel.replace(' →', '')} ${title}`}
+        className={cn(
+          'inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-medium text-rose-600',
+          'transition-colors duration-200 motion-reduce:transition-none',
+          'hover:bg-rose-50 hover:text-rose-700',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2'
+        )}
       >
-        Edit
-      </Button>
+        {actionLabel}
+      </button>
     </div>
   );
 }
@@ -81,10 +112,5 @@ export function RecipientStatusBadge({
   className?: string;
 }) {
   const meta = BUYER_STATUS_LABELS[status];
-  return (
-    <span className={cn('text-sm text-stone-700', className)}>
-      <span aria-hidden="true">{meta.emoji} </span>
-      {meta.text}
-    </span>
-  );
+  return <span className={cn('text-sm text-stone-600', className)}>{meta.text}</span>;
 }

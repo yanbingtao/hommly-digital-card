@@ -10,6 +10,8 @@ import {
   clearRecipientSelection,
   computeRecipientStatusCounts,
   filterRecipientsByUiStatus,
+  formatBuyerFacingGiftBadge,
+  formatBuyerFacingGiftTitle,
   getBatchEditActionLabel,
   getBuyerFacingRecipientStatus,
   computeBuyerFacingStatusCounts,
@@ -17,6 +19,8 @@ import {
   formatSelectedGiftCountLabel,
   getPublishedProgressPercent,
   getRecipientPersonalisationStatus,
+  getRecipientRowActionLabel,
+  getRecipientRowSubtitle,
   getSelectedRecipientNumbers,
   selectAllRecipientIds,
   setSingleRecipientSelection,
@@ -124,9 +128,23 @@ describe('recipient labels and ordering', () => {
     expect(formatRecipientNumber(37)).toBe('Gift #37');
   });
 
+  it('formats buyer-facing gift titles and badges', () => {
+    expect(formatBuyerFacingGiftTitle(1)).toBe('Gift 01');
+    expect(formatBuyerFacingGiftTitle(37)).toBe('Gift 37');
+    expect(formatBuyerFacingGiftBadge(1)).toBe('01');
+    expect(formatBuyerFacingGiftBadge(100)).toBe('100');
+  });
+
   it('orders recipients by number', () => {
     const sorted = sortRecipientsByNumber([item(3), item(1), item(2)]);
     expect(sorted.map((row) => row.recipient_number)).toEqual([1, 2, 3]);
+  });
+
+  it('uses buyer-facing row subtitle and action labels', () => {
+    expect(getRecipientRowSubtitle(item(1))).toBe('Ready for your personal touch');
+    expect(getRecipientRowSubtitle(item(2, { status: 'published' }))).toBe('Personalised');
+    expect(getRecipientRowActionLabel(item(1))).toBe('Personalise →');
+    expect(getRecipientRowActionLabel(item(2, { status: 'published' }))).toBe('Edit →');
   });
 });
 
@@ -169,10 +187,10 @@ describe('selection helpers', () => {
   it('batch edit labels use selected numbers', () => {
     const selected = new Set([items[0]!.id, items[2]!.id]);
     expect(getSelectedRecipientNumbers(selected, items)).toEqual([1, 3]);
-    expect(getBatchEditActionLabel(1)).toBe('Edit Selected Gift');
-    expect(getBatchEditActionLabel(2)).toBe('Batch Edit');
-    expect(formatSelectedGiftCountLabel(1)).toBe('1 Gift Selected');
-    expect(formatSelectedGiftCountLabel(3)).toBe('3 Gifts Selected');
+    expect(getBatchEditActionLabel(1)).toBe('Personalise selected →');
+    expect(getBatchEditActionLabel(2)).toBe('Personalise selected →');
+    expect(formatSelectedGiftCountLabel(1)).toBe('1 gift selected');
+    expect(formatSelectedGiftCountLabel(3)).toBe('3 gifts selected');
   });
 });
 
@@ -295,7 +313,7 @@ describe('edit page mode routing', () => {
       'utf8'
     );
     expect(source).not.toMatch(/SharedCardEditor/);
-    expect(source).toMatch(/Personalise Your Gifts/);
+    expect(source).toMatch(/Personalise your gifts/);
   });
 
   it('loads recipients server-side via edit-page-loader', () => {

@@ -183,22 +183,41 @@ export function filterRecipientsByBuyerStatus(
   return items.filter((item) => getBuyerFacingRecipientStatus(item) === filter);
 }
 
-export function getBatchEditActionLabel(selectedCount: number): string {
-  if (selectedCount <= 1) {
-    return 'Edit Selected Gift';
-  }
-  return 'Batch Edit';
+export function getBatchEditActionLabel(_selectedCount: number): string {
+  return 'Personalise selected →';
 }
 
 export function formatSelectedGiftCountLabel(selectedCount: number): string {
-  return `${selectedCount} Gift${selectedCount === 1 ? '' : 's'} Selected`;
+  return `${selectedCount} gift${selectedCount === 1 ? '' : 's'} selected`;
 }
 
-export function getRecipientRowSubtitle(item: IndividualRecipientManagerItem): string | null {
-  if (getBuyerFacingRecipientStatus(item) === 'published') {
-    return item.has_message ? 'Message added' : 'Published';
+/** Buyer-facing gift title, e.g. Gift 01 (keeps Gift #01 for admin/API labels). */
+export function formatBuyerFacingGiftTitle(recipientNumber: number): string {
+  if (!Number.isInteger(recipientNumber) || recipientNumber <= 0) {
+    throw new RangeError('recipient_number must be a positive integer');
   }
-  return null;
+  const width = Math.max(2, String(recipientNumber).length);
+  return `Gift ${String(recipientNumber).padStart(width, '0')}`;
+}
+
+/** Compact numbered badge for gift rows, e.g. 01. */
+export function formatBuyerFacingGiftBadge(recipientNumber: number): string {
+  if (!Number.isInteger(recipientNumber) || recipientNumber <= 0) {
+    throw new RangeError('recipient_number must be a positive integer');
+  }
+  const width = Math.max(2, String(recipientNumber).length);
+  return String(recipientNumber).padStart(width, '0');
+}
+
+export function getRecipientRowSubtitle(item: IndividualRecipientManagerItem): string {
+  if (getBuyerFacingRecipientStatus(item) === 'published') {
+    return 'Personalised';
+  }
+  return 'Ready for your personal touch';
+}
+
+export function getRecipientRowActionLabel(item: IndividualRecipientManagerItem): string {
+  return getBuyerFacingRecipientStatus(item) === 'published' ? 'Edit →' : 'Personalise →';
 }
 
 export function getSelectedRecipientNumbers(

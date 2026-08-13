@@ -17,18 +17,19 @@ import {
 import { refreshIndividualRecipientManager } from '@/lib/individual-recipient-editor-actions';
 import { IndividualRecipientEditor } from '@/components/individual/IndividualRecipientEditor';
 import { RecipientManagerRow } from '@/components/individual/RecipientManagerRow';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 type ManagerView = 'list' | 'editor';
 
-const FILTER_OPTIONS: Array<{ id: BuyerFacingRecipientFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'not_started', label: 'Not started' },
-  { id: 'published', label: 'Published' },
+const FILTER_OPTIONS: Array<{
+  id: BuyerFacingRecipientFilter;
+  label: string;
+  countKey: 'total_count' | 'not_started_count' | 'published_count';
+}> = [
+  { id: 'all', label: 'All', countKey: 'total_count' },
+  { id: 'not_started', label: 'To personalise', countKey: 'not_started_count' },
+  { id: 'published', label: 'Ready', countKey: 'published_count' },
 ];
 
 type IndividualRecipientManagerProps = {
@@ -95,96 +96,136 @@ export function IndividualRecipientManager({
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-28">
-      <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto max-w-xl px-4 py-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-rose-500" />
-            <div>
-              <h1 className="text-base font-semibold text-stone-800">Personalise Your Gifts</h1>
-              <p className="text-sm text-stone-500">Choose one, several, or all gifts to personalise.</p>
-            </div>
+    <div className="min-h-screen bg-[#faf8f6] pb-32">
+      <main className="mx-auto w-full max-w-[800px] px-4 py-8 sm:px-6 sm:py-12">
+        <header className="mb-8 sm:mb-10">
+          <h1 className="text-2xl font-semibold tracking-tight text-stone-900 sm:text-[1.75rem]">
+            Personalise your gifts{' '}
+            <span aria-hidden="true" className="font-normal">
+              ✨
+            </span>
+          </h1>
+          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-stone-500 sm:text-base">
+            Add a personal touch to each gift — or select several to personalise them together.
+          </p>
+        </header>
+
+        <section className="mb-8 sm:mb-10" aria-labelledby="gift-progress-heading">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2
+              id="gift-progress-heading"
+              className="text-lg font-semibold tracking-tight text-stone-900 sm:text-xl"
+            >
+              {counts.published_count} of {counts.total_count} ready
+            </h2>
           </div>
+
+          <div
+            className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-stone-200/80"
+            role="progressbar"
+            aria-valuenow={progressPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Personalisation progress"
+          >
+            <div
+              className="h-full rounded-full bg-rose-500 transition-[width] duration-200 ease-out motion-reduce:transition-none"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          <dl className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-stone-500">
+            <div className="flex items-baseline gap-1.5">
+              <dt className="sr-only">Total gifts</dt>
+              <dd>
+                <span className="font-medium text-stone-700">{counts.total_count}</span> gifts
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <dt className="sr-only">Ready</dt>
+              <dd>
+                <span className="font-medium text-stone-700">{counts.published_count}</span> ready
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <dt className="sr-only">To personalise</dt>
+              <dd>
+                <span className="font-medium text-stone-700">{counts.not_started_count}</span> to
+                personalise
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <div
+          className="mb-5 flex flex-wrap gap-2"
+          role="tablist"
+          aria-label="Filter gifts"
+        >
+          {FILTER_OPTIONS.map((option) => {
+            const selected = filter === option.id;
+            const count = counts[option.countKey];
+            return (
+              <button
+                key={option.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setFilter(option.id)}
+                className={cn(
+                  'inline-flex min-h-10 items-center rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-200 motion-reduce:transition-none',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2',
+                  selected
+                    ? 'bg-rose-500 text-white'
+                    : 'bg-stone-100/90 text-stone-600 hover:bg-stone-200/80 hover:text-stone-800'
+                )}
+              >
+                {option.label}{' '}
+                <span className={cn('ml-1 tabular-nums', selected ? 'text-rose-50' : 'text-stone-400')}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
-      </header>
 
-      <main className="mx-auto max-w-xl px-4 py-6">
-        <Card className="border-stone-200">
-          <CardContent className="space-y-5 p-5">
-            <div className="space-y-3">
-              <div>
-                <p className="text-lg font-semibold text-stone-800">
-                  {counts.total_count} Gift{counts.total_count === 1 ? '' : 's'}
-                </p>
-                <p className="text-sm text-stone-600">
-                  {counts.published_count} of {counts.total_count} published
-                </p>
-              </div>
-              <div
-                className="h-2 w-full overflow-hidden rounded-full bg-stone-100"
-                role="progressbar"
-                aria-valuenow={progressPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="Published progress"
-              >
-                <div
-                  className="h-full rounded-full bg-rose-500 transition-all"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              <div className="grid gap-1 text-sm text-stone-700 sm:grid-cols-2">
-                <p>✅ Published: {counts.published_count}</p>
-                <p>⚪ Not started: {counts.not_started_count}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-0.5 text-sm">
+          <button
+            type="button"
+            onClick={() => setSelectedIds(selectAllRecipientIds(sortedRecipients))}
+            className="min-h-10 rounded-md font-medium text-stone-600 transition-colors duration-200 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2 motion-reduce:transition-none"
+          >
+            Select all
+          </button>
+          {selectedCount > 0 ? (
+            <>
+              <span className="text-stone-300" aria-hidden="true">
+                ·
+              </span>
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedIds(selectAllRecipientIds(sortedRecipients))}
-              >
-                Select All
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
                 onClick={() => setSelectedIds(clearRecipientSelection())}
+                className="min-h-10 rounded-md font-medium text-stone-600 transition-colors duration-200 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 focus-visible:ring-offset-2 motion-reduce:transition-none"
               >
-                Clear
-              </Button>
-            </div>
+                Clear selection
+              </button>
+            </>
+          ) : null}
+        </div>
 
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter gifts">
-              {FILTER_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={filter === option.id}
-                  onClick={() => setFilter(option.id)}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                    filter === option.id
-                      ? 'bg-rose-100 text-rose-800 ring-1 ring-rose-200'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="divide-y divide-stone-100 rounded-lg border border-stone-200 px-3">
-              {visibleRecipients.length === 0 ? (
-                <p className="py-6 text-center text-sm text-stone-500">No gifts match this filter.</p>
-              ) : (
-                visibleRecipients.map((item) => (
+        <section
+          className="overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200/70"
+          aria-label="Gift list"
+        >
+          {visibleRecipients.length === 0 ? (
+            <p className="px-5 py-12 text-center text-sm text-stone-500">
+              No gifts match this filter.
+            </p>
+          ) : (
+            <ul className="divide-y divide-stone-100/90">
+              {visibleRecipients.map((item) => (
+                <li key={item.id}>
                   <RecipientManagerRow
-                    key={item.id}
                     item={item}
                     checked={selectedIds.has(item.id)}
                     onCheckedChange={() => {
@@ -192,26 +233,36 @@ export function IndividualRecipientManager({
                     }}
                     onEdit={() => openEditor(setSingleRecipientSelection(item.id))}
                   />
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
 
       {selectedCount > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-stone-800">
+        <div
+          className={cn(
+            'fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3',
+            'motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-200'
+          )}
+        >
+          <div className="mx-auto flex w-full max-w-[800px] items-center justify-between gap-4 rounded-2xl bg-stone-900 px-4 py-3.5 text-white shadow-lg shadow-stone-900/15 sm:px-5">
+            <p className="text-sm font-medium text-stone-100">
               {formatSelectedGiftCountLabel(selectedCount)}
             </p>
-            <Button
+            <button
               type="button"
-              className="bg-rose-500 hover:bg-rose-600"
               onClick={() => openEditor(new Set(selectedIds))}
+              className={cn(
+                'inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-rose-500 px-4 text-sm font-semibold text-white',
+                'transition-colors duration-200 motion-reduce:transition-none',
+                'hover:bg-rose-400',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-900'
+              )}
             >
               {batchEditLabel}
-            </Button>
+            </button>
           </div>
         </div>
       ) : null}
