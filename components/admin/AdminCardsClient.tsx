@@ -232,9 +232,31 @@ export function AdminCardsClient({
   const [individualRecipients, setIndividualRecipients] = useState<AdminIndividualRecipientItem[] | null>(null);
   const [loadingIndividualRecipients, setLoadingIndividualRecipients] = useState(false);
   const [revealedEditPin, setRevealedEditPin] = useState<string | null>(null);
+  const [revealedEditPinsByCardId, setRevealedEditPinsByCardId] = useState<Record<string, string>>(
+    {}
+  );
+  const [revealingEditPinId, setRevealingEditPinId] = useState<string | null>(null);
   const [revealingEditPin, setRevealingEditPin] = useState(false);
   const [resettingEditPin, setResettingEditPin] = useState(false);
   const [confirmResetEditPin, setConfirmResetEditPin] = useState(false);
+
+  const revealEditPinForCard = async (cardId: string) => {
+    setRevealingEditPinId(cardId);
+    try {
+      const result = await adminRevealEditPinAction(cardId);
+      if (result.error || !result.pin) {
+        toast.error(result.error || 'Could not reveal Edit PIN');
+        return null;
+      }
+      setRevealedEditPinsByCardId((prev) => ({ ...prev, [cardId]: result.pin! }));
+      if (selectedCard?.id === cardId) {
+        setRevealedEditPin(result.pin);
+      }
+      return result.pin;
+    } finally {
+      setRevealingEditPinId(null);
+    }
+  };
 
   const [form, setForm] = useState({
     order_number: '',
@@ -253,9 +275,13 @@ export function AdminCardsClient({
   }, [initialError]);
 
   useEffect(() => {
-    setRevealedEditPin(null);
     setConfirmResetEditPin(false);
-  }, [selectedCard?.id]);
+    if (!selectedCard?.id) {
+      setRevealedEditPin(null);
+      return;
+    }
+    setRevealedEditPin(revealedEditPinsByCardId[selectedCard.id] ?? null);
+  }, [selectedCard?.id, revealedEditPinsByCardId]);
 
   useEffect(() => {
     if (!selectedCard) {
@@ -840,6 +866,67 @@ export function AdminCardsClient({
                           copied={copiedField === `edit-${card.id}`}
                           onCopy={handleCopy}
                         />
+                        <div className="space-y-1 px-0.5">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            Edit PIN
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              readOnly
+                              value={revealedEditPinsByCardId[card.id] ?? '••••••'}
+                              className="h-8 flex-1 font-mono text-xs tracking-[0.18em]"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 shrink-0 px-2.5 text-xs"
+                              disabled={revealingEditPinId === card.id}
+                              onClick={() => {
+                                if (revealedEditPinsByCardId[card.id]) {
+                                  setRevealedEditPinsByCardId((prev) => {
+                                    const next = { ...prev };
+                                    delete next[card.id];
+                                    return next;
+                                  });
+                                  if (selectedCard?.id === card.id) {
+                                    setRevealedEditPin(null);
+                                  }
+                                  return;
+                                }
+                                void revealEditPinForCard(card.id);
+                              }}
+                            >
+                              {revealingEditPinId === card.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : revealedEditPinsByCardId[card.id] ? (
+                                'Hide'
+                              ) : (
+                                'Reveal'
+                              )}
+                            </Button>
+                            {revealedEditPinsByCardId[card.id] ? (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() =>
+                                  handleCopy(
+                                    revealedEditPinsByCardId[card.id]!,
+                                    `edit-pin-${card.id}`
+                                  )
+                                }
+                              >
+                                {copiedField === `edit-pin-${card.id}` ? (
+                                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
                         {individual ? (
                           <p className="px-1 text-[11px] text-stone-500">
                             {formatAdminRecipientViewLinksLabel(progress.recipient_view_links)}
@@ -1085,24 +1172,19 @@ export function AdminCardsClient({
                       variant="outline"
                       size="sm"
                       className="h-8 shrink-0"
-                      disabled={revealingEditPin}
+                      disabled={revealingEditPin || revealingEditPinId === selectedCard.id}
                       onClick={() => {
                         void (async () => {
                           setRevealingEditPin(true);
                           try {
-                            const result = await adminRevealEditPinAction(selectedCard.id);
-                            if (result.error || !result.pin) {
-                              toast.error(result.error || 'Could not reveal Edit PIN');
-                              return;
-                            }
-                            setRevealedEditPin(result.pin);
+                            await revealEditPinForCard(selectedCard.id);
                           } finally {
                             setRevealingEditPin(false);
                           }
                         })();
                       }}
                     >
-                      {revealingEditPin ? (
+                      {revealingEditPin || revealingEditPinId === selectedCard.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         'Reveal'
@@ -1470,6 +1552,10 @@ export function AdminCardsClient({
                       return;
                     }
                     setRevealedEditPin(result.pin);
+                    setRevealedEditPinsByCardId((prev) => ({
+                      ...prev,
+                      [selectedCard.id]: result.pin!,
+                    }));
                     setConfirmResetEditPin(false);
                     toast.success('New Edit PIN generated');
                   } finally {
