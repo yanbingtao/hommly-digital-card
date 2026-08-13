@@ -40,8 +40,12 @@ export function RecipientManagerRow({
   const actionLabel = getRecipientRowActionLabel(item);
   const viewLabel = getRecipientRowViewLabel(item);
   const viewUrl = getRecipientManagerViewUrl(item);
-  const showView = canViewRecipientEcard(item) && Boolean(viewUrl);
+  const viewEnabled = canViewRecipientEcard(item) && Boolean(viewUrl);
   const checkboxId = `gift-select-${item.id}`;
+  const viewControlClass = cn(
+    'inline-flex min-h-11 items-center justify-center rounded-lg px-2 text-sm font-medium',
+    'transition-colors duration-200 motion-reduce:transition-none'
+  );
 
   return (
     <div
@@ -91,23 +95,33 @@ export function RecipientManagerRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-        {showView && viewUrl ? (
+        {viewEnabled && viewUrl ? (
           <a
             href={viewUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`View ${title} eCard (opens in a new tab)`}
             className={cn(
-              'inline-flex min-h-11 items-center justify-center rounded-lg px-2 text-sm font-medium text-stone-600',
-              'transition-colors duration-200 motion-reduce:transition-none',
-              'hover:bg-stone-100 hover:text-stone-800',
+              viewControlClass,
+              'text-stone-600 hover:bg-stone-100 hover:text-stone-800',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400/40 focus-visible:ring-offset-2'
             )}
           >
             <span className="sm:hidden">View</span>
             <span className="hidden sm:inline">{viewLabel}</span>
           </a>
-        ) : null}
+        ) : (
+          <span
+            role="link"
+            aria-disabled="true"
+            aria-label={`View ${title} eCard (available after this eCard is published)`}
+            title="Available after this eCard is published"
+            className={cn(viewControlClass, 'cursor-not-allowed text-stone-300')}
+          >
+            <span className="sm:hidden">View</span>
+            <span className="hidden sm:inline">{viewLabel}</span>
+          </span>
+        )}
 
         <button
           type="button"

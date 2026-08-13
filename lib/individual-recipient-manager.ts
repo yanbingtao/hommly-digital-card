@@ -270,7 +270,7 @@ export function getRecipientRowViewLabel(_item?: IndividualRecipientManagerItem)
 }
 
 /**
- * Public recipient View URL for a ready gift, or null when View should not be shown.
+ * Public recipient View URL for a published gift, or null when View must stay disabled.
  * Uses the same ready detection as the "eCard ready" subtitle.
  */
 export function getRecipientManagerViewUrl(
@@ -283,6 +283,7 @@ export function getRecipientManagerViewUrl(
   return url || null;
 }
 
+/** True when the always-visible View eCard control should be enabled (published + safe URL). */
 export function canViewRecipientEcard(item: IndividualRecipientManagerItem): boolean {
   return Boolean(getRecipientManagerViewUrl(item));
 }

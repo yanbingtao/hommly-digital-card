@@ -472,7 +472,7 @@ describe('expired individual parent blocks manager', () => {
 });
 
 describe('buyer View eCard action', () => {
-  it('row shows View only for ready gifts and opens recipient /g/ URL in a new tab', () => {
+  it('row always shows View; enables /g/ link only for published gifts', () => {
     const source = fs.readFileSync(
       path.join(ROOT, 'components/individual/RecipientManagerRow.tsx'),
       'utf8'
@@ -485,6 +485,9 @@ describe('buyer View eCard action', () => {
     expect(source).toMatch(/canViewRecipientEcard/);
     expect(source).toMatch(/getRecipientRowViewLabel/);
     expect(source).toMatch(/getRecipientRowActionLabel/);
+    expect(source).toMatch(/viewEnabled/);
+    expect(source).toMatch(/aria-disabled="true"/);
+    expect(source).toMatch(/cursor-not-allowed/);
     expect(labels).toMatch(/View eCard/);
     expect(labels).toMatch(/Edit eCard →/);
     expect(source).toMatch(/target="_blank"/);
