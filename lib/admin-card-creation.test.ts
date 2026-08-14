@@ -123,36 +123,25 @@ describe('Phase 6A admin card helpers', () => {
   });
 });
 
-describe('Phase 6A admin UI wiring', () => {
-  it('Shared is default mode in New Card form', () => {
+describe('Phase 6A admin UI wiring — Individual-only create', () => {
+  it('normal create form has Order Number and Quantity only', () => {
     const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
-    expect(source).toMatch(/card_type: 'shared'/);
-    expect(source).toMatch(/RadioGroupItem value="shared"/);
-  });
-
-  it('Shared hides Quantity field', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
-    expect(source).toMatch(/form\.card_type === 'individual'/);
+    expect(source).not.toMatch(/RadioGroupItem value="shared"/);
+    expect(source).not.toMatch(/Card Type/);
+    expect(source).toMatch(/id="quantity"/);
     expect(source).toMatch(/This creates one unique recipient QR for each gift/);
   });
 
-  it('Individual shows Quantity field', () => {
+  it('normal create always uses createIndividualCard', () => {
     const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
-    expect(source).toMatch(/id="quantity"/);
     expect(source).toMatch(/createIndividualCard\(/);
+    expect(source).not.toMatch(/\bcreateCard\(/);
   });
 
-  it('Shared create uses createCard', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'components/admin/AdminCardsClient.tsx'), 'utf8');
-    expect(source).toMatch(/createCard\(/);
-    expect(source).not.toMatch(/adminCreateIndividualTestCard/);
-  });
-
-  it('Individual create uses createIndividualCard server action', () => {
+  it('Individual create uses createIndividualCardCore with admin metadata', () => {
     const actionsSource = fs.readFileSync(path.join(ROOT, 'lib/actions.ts'), 'utf8');
     expect(actionsSource).toMatch(/createIndividualCardCore/);
-    expect(actionsSource).toMatch(/platform: null/);
-    expect(actionsSource).toMatch(/externalOrderId: null/);
+    expect(actionsSource).toMatch(/adminProductionAutomationMetadata/);
   });
 
   it('Individual result shows Edit URL and recipient View URLs only', () => {
@@ -281,7 +270,7 @@ describe('Phase 6A creation routing', () => {
     expect(validateAdminIndividualRecipientQuantity(3).ok).toBe(true);
   });
 
-  it('automation API supports individual mode with recipient_count', () => {
+  it('automation API requires recipient_count for Individual create', () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
@@ -295,6 +284,12 @@ describe('Phase 6A creation routing', () => {
         platform: 'shopee',
         order_id: '260810ABC123XY',
         recipient_count: 3,
+      }).ok
+    ).toBe(true);
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
       }).ok
     ).toBe(false);
   });

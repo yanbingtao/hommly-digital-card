@@ -495,13 +495,13 @@ describe('Phase 3.6 production guards', () => {
       path.join(ROOT, 'components/admin/AdminCardsClient.tsx'),
       'utf8'
     );
-    expect(source).toMatch(/createCard\(/);
     expect(source).toMatch(/createIndividualCard\(/);
+    expect(source).not.toMatch(/\bcreateCard\(/);
     expect(source).not.toMatch(/adminCreateIndividualTestCard/);
     expect(source).not.toMatch(/Individual Test/);
   });
 
-  it('automation API supports individual mode with recipient_count', () => {
+  it('automation API requires recipient_count; rejects shared mode', () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
@@ -515,6 +515,19 @@ describe('Phase 3.6 production guards', () => {
         platform: 'shopee',
         order_id: '260810ABC123XY',
         recipient_count: 3,
+      }).ok
+    ).toBe(true);
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+      }).ok
+    ).toBe(false);
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+        mode: 'shared',
       }).ok
     ).toBe(false);
   });

@@ -694,7 +694,7 @@ describe('Shared production paths unchanged', () => {
     expect(recipientTouched).toBe(false);
   });
 
-  it('internal API parser supports mode and recipient_count for individual', () => {
+  it('internal API parser requires recipient_count and rejects shared mode', () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
@@ -708,6 +708,19 @@ describe('Shared production paths unchanged', () => {
         platform: 'shopee',
         order_id: '260810ABC123XY',
         recipient_count: 37,
+      }).ok
+    ).toBe(true);
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+      }).ok
+    ).toBe(false);
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+        mode: 'shared',
       }).ok
     ).toBe(false);
   });

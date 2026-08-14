@@ -3,7 +3,10 @@ import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createCardCore } from './create-card-core';
 import { handleInternalCreateCard } from './internal-card-api';
-import { parseInternalCreateCardRequest } from './internal-card-request';
+import {
+  parseInternalCreateCardRequest,
+  SHARED_CARD_CREATION_DISABLED,
+} from './internal-card-request';
 import {
   buildIndividualInternalCardResponse,
   buildSharedInternalCardResponse,
@@ -323,25 +326,26 @@ function assertParsed<T extends { ok: true }>(
   expect(parsed.ok).toBe(true);
 }
 
-describe('parseInternalCreateCardRequest — Phase 6B', () => {
-  it('accepts legacy request without mode as shared', () => {
+describe('parseInternalCreateCardRequest — Individual-only', () => {
+  it('rejects legacy request without recipient_count', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
     });
-    assertParsed(parsed);
-    expect(parsed.mode).toBe('shared');
-    expect(parsed.recipientCount).toBeUndefined();
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.error).toMatch(/recipient_count is required/i);
   });
 
-  it('accepts explicit shared mode', () => {
+  it('rejects explicit shared mode', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
       mode: 'shared',
     });
-    assertParsed(parsed);
-    expect(parsed.mode).toBe('shared');
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.code).toBe(SHARED_CARD_CREATION_DISABLED);
   });
 
   it('rejects shared mode with recipient_count', () => {
@@ -353,7 +357,7 @@ describe('parseInternalCreateCardRequest — Phase 6B', () => {
     });
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.error).toMatch(/recipient_count is not allowed for shared mode/i);
+    expect(parsed.code).toBe(SHARED_CARD_CREATION_DISABLED);
   });
 
   it('rejects individual mode without recipient_count', () => {
@@ -399,15 +403,27 @@ describe('parseInternalCreateCardRequest — Phase 6B', () => {
     expect(parsed.recipientCount).toBe(3);
   });
 
+  it('accepts omitted mode with recipient_count', () => {
+    const parsed = parseInternalCreateCardRequest({
+      platform: 'shopee',
+      order_id: '260810ABC123XY',
+      recipient_count: 37,
+    });
+    assertParsed(parsed);
+    expect(parsed.mode).toBe('individual');
+    expect(parsed.recipientCount).toBe(37);
+  });
+
   it('rejects invalid mode', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
       mode: 'bulk',
+      recipient_count: 3,
     });
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.error).toMatch(/mode must be shared or individual/i);
+    expect(parsed.error).toMatch(/mode must be individual/i);
   });
 
   it('rejects unknown fields', () => {
@@ -420,52 +436,9 @@ describe('parseInternalCreateCardRequest — Phase 6B', () => {
     if (parsed.ok) return;
     expect(parsed.error).toMatch(/unexpected fields/i);
   });
-
-  it('rejects legacy request with recipient_count only', () => {
-    const parsed = parseInternalCreateCardRequest({
-      platform: 'shopee',
-      order_id: '260810ABC123XY',
-      recipient_count: 37,
-    });
-    expect(parsed.ok).toBe(false);
-    if (parsed.ok) return;
-    expect(parsed.error).toMatch(/recipient_count is not allowed for shared mode/i);
-  });
 });
 
 describe('handleInternalCreateCard — routing', () => {
-  it('routes legacy request to createCardCore', async () => {
-    const supabase = mockSharedSupabase({ existing: null });
-    const parsed = parseInternalCreateCardRequest({
-      platform: 'shopee',
-      order_id: '260810ABC123XY',
-    });
-    assertParsed(parsed);
-    const result = await handleInternalCreateCard(supabase as never, parsed);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.body.mode).toBe('shared');
-    expect(result.httpStatus).toBe(201);
-    expect(result.body).toHaveProperty('recipient_view_url');
-  });
-
-  it('routes explicit shared to createCardCore', async () => {
-    const existing = sharedCardFixture();
-    const supabase = mockSharedSupabase({ existing });
-    const parsed = parseInternalCreateCardRequest({
-      platform: 'shopee',
-      order_id: '260810ABC123XY',
-      mode: 'shared',
-    });
-    assertParsed(parsed);
-    const result = await handleInternalCreateCard(supabase as never, parsed);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.httpStatus).toBe(200);
-    expect(result.body.status).toBe('existing');
-    expect(result.body.mode).toBe('shared');
-  });
-
   it('routes individual to createIndividualCardCore', async () => {
     const supabase = mockIndividualSupabase({ existingCard: null });
     const parsed = parseInternalCreateCardRequest({
@@ -482,6 +455,20 @@ describe('handleInternalCreateCard — routing', () => {
     expect(result.body.mode).toBe('individual');
     if (result.body.mode !== 'individual') return;
     expect(result.body.recipients).toHaveLength(3);
+  });
+
+  it('routes omitted mode with recipient_count as Individual', async () => {
+    const supabase = mockIndividualSupabase({ existingCard: null });
+    const parsed = parseInternalCreateCardRequest({
+      platform: 'shopee',
+      order_id: 'ORDER002',
+      recipient_count: 2,
+    });
+    assertParsed(parsed);
+    const result = await handleInternalCreateCard(supabase as never, parsed);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.body.mode).toBe('individual');
   });
 });
 
@@ -585,12 +572,11 @@ describe('handleInternalCreateCard — idempotency and conflicts', () => {
     expect(result.body.requested_count).toBe(3);
   });
 
-  it('returns 409 when Shared exists and Individual is requested', async () => {
+  it('Individual request against existing Shared card returns CARD_MODE_MISMATCH', async () => {
     const supabase = mockSharedSupabase({ existing: sharedCardFixture() });
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
-      mode: 'individual',
       recipient_count: 3,
     });
     assertParsed(parsed);
@@ -601,27 +587,6 @@ describe('handleInternalCreateCard — idempotency and conflicts', () => {
     expect(result.body.error).toBe('CARD_MODE_MISMATCH');
     expect(result.body.existing_mode).toBe('shared');
     expect(result.body.requested_mode).toBe('individual');
-  });
-
-  it('returns 409 when Individual exists and Shared is requested', async () => {
-    const card = individualCardFixture();
-    const supabase = mockIndividualSupabase({
-      existingCard: card,
-      existingRecipients: [recipientFixture(1, 'tok1')],
-    });
-    const parsed = parseInternalCreateCardRequest({
-      platform: 'shopee',
-      order_id: '260810ABC123XY',
-      mode: 'shared',
-    });
-    assertParsed(parsed);
-    const result = await handleInternalCreateCard(supabase as never, parsed);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.httpStatus).toBe(409);
-    expect(result.body.error).toBe('CARD_MODE_MISMATCH');
-    expect(result.body.existing_mode).toBe('individual');
-    expect(result.body.requested_mode).toBe('shared');
   });
 });
 
@@ -664,10 +629,10 @@ describe('Phase 6B route wiring guards', () => {
     expect(source).not.toMatch(/createIndividualCardCore\(/);
   });
 
-  it('internal-card-api routes both cores without merging them', () => {
+  it('internal-card-api routes Individual create only', () => {
     const source = fs.readFileSync(path.join(ROOT, 'lib/internal-card-api.ts'), 'utf8');
-    expect(source).toMatch(/createCardCore/);
     expect(source).toMatch(/createIndividualCardCore/);
+    expect(source).not.toMatch(/createCardCore/);
   });
 
   it('Shared createCardCore still creates zero recipients', async () => {

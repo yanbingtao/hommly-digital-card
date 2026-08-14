@@ -232,12 +232,22 @@ describe('card name generation', () => {
 });
 
 describe('internal request validation', () => {
-  it('accepts a valid shopee order id', () => {
+  it('accepts a valid shopee order id with recipient_count', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
+      recipient_count: 3,
     });
     expect(parsed.ok).toBe(true);
+  });
+
+  it('rejects valid order id without recipient_count', () => {
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+      }).ok
+    ).toBe(false);
   });
 
   it('rejects malformed order ids', () => {

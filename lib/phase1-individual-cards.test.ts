@@ -393,8 +393,8 @@ describe('shared creation unchanged', () => {
   });
 });
 
-describe('internal API — Phase 6B shared compatibility', () => {
-  it('shared response shape still exposes recipient_view_url', () => {
+describe('internal API — Individual-only create policy', () => {
+  it('shared response builder still exists for historical compatibility', () => {
     const card: CardWithOrder = {
       id: 'card-1',
       order_id: 'ord-1',
@@ -426,17 +426,31 @@ describe('internal API — Phase 6B shared compatibility', () => {
     expect(response).not.toHaveProperty('recipients');
   });
 
-  it('parser accepts individual mode with recipient_count', () => {
+  it('parser requires recipient_count for new creates', () => {
+    expect(
+      parseInternalCreateCardRequest({
+        platform: 'shopee',
+        order_id: '260810ABC123XY',
+      }).ok
+    ).toBe(false);
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
       order_id: '260810ABC123XY',
-      mode: 'individual',
       recipient_count: 37,
     });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.mode).toBe('individual');
     expect(parsed.recipientCount).toBe(37);
+  });
+
+  it('parser rejects mode=shared', () => {
+    const parsed = parseInternalCreateCardRequest({
+      platform: 'shopee',
+      order_id: '260810ABC123XY',
+      mode: 'shared',
+    });
+    expect(parsed.ok).toBe(false);
   });
 
   it('parser rejects unknown fields', () => {

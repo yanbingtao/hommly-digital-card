@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createCardCore, findCardByPlatformOrder } from './create-card-core';
 import {
   createIndividualCardCore,
   INDIVIDUAL_ERROR,
@@ -7,9 +6,9 @@ import {
 import type { ParsedInternalCreateRequest } from './internal-card-request';
 import {
   buildIndividualInternalCardResponse,
-  buildSharedInternalCardResponse,
   type InternalCardResponse,
 } from './internal-card-response';
+import { automationApiMetadata } from './card-automation-metadata';
 
 export type InternalCardApiSuccess = {
   ok: true;
@@ -25,66 +24,16 @@ export type InternalCardApiFailure = {
 
 export type InternalCardApiResult = InternalCardApiSuccess | InternalCardApiFailure;
 
-function modeMismatchResponse(
-  existingMode: string,
-  requestedMode: string
-): InternalCardApiFailure {
-  return {
-    ok: false,
-    httpStatus: 409,
-    body: {
-      error: 'CARD_MODE_MISMATCH',
-      existing_mode: existingMode,
-      requested_mode: requestedMode,
-    },
-  };
-}
-
 export async function handleInternalCreateCard(
   supabase: SupabaseClient,
   parsed: Extract<ParsedInternalCreateRequest, { ok: true }>
 ): Promise<InternalCardApiResult> {
-  if (parsed.mode === 'shared') {
-    const existing = await findCardByPlatformOrder(supabase, parsed.platform, parsed.orderId);
-    if (existing) {
-      const existingMode = existing.card_mode ?? 'shared';
-      if (existingMode === 'individual') {
-        return modeMismatchResponse('individual', 'shared');
-      }
-    }
-
-    const result = await createCardCore(supabase, {
-      orderNumberInput: parsed.orderId,
-      platform: parsed.platform,
-      externalOrderId: parsed.orderId,
-    });
-
-    if (!result.ok) {
-      return { ok: false, httpStatus: 500, body: { error: result.error } };
-    }
-
-    return {
-      ok: true,
-      httpStatus: result.status === 'created' ? 201 : 200,
-      body: buildSharedInternalCardResponse({
-        status: result.status,
-        platform: parsed.platform,
-        orderId: parsed.orderId,
-        card: result.card,
-      }),
-    };
-  }
-
-  const recipientCount = parsed.recipientCount;
-  if (recipientCount === undefined) {
-    return { ok: false, httpStatus: 400, body: { error: 'recipient_count is required for individual mode' } };
-  }
-
   const result = await createIndividualCardCore(supabase, {
     orderNumberInput: parsed.orderId,
-    recipientCount,
+    recipientCount: parsed.recipientCount,
     platform: parsed.platform,
     externalOrderId: parsed.orderId,
+    automationMetadata: automationApiMetadata(),
   });
 
   if (!result.ok) {

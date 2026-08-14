@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { applyAutomationMetadataToInsertRow, type CardAutomationMetadata } from './card-automation';
 import { generateEditToken, generatePublicToken } from './card-tokens';
 import { buildEditPinStorage } from './edit-pin-service';
 import { generateEditPin } from './edit-pin';
@@ -34,6 +35,7 @@ export type CreateCardCoreInput = {
   externalOrderId?: string | null;
   /** Optional business order timestamp; defaults to now (same as orders.created_at). */
   orderedAt?: string | Date | null;
+  automationMetadata?: CardAutomationMetadata;
 };
 
 export type CreateCardCoreSuccess = {
@@ -139,6 +141,7 @@ export async function createCardCore(
       insertRow.platform = platform;
       insertRow.external_order_id = externalOrderId;
     }
+    applyAutomationMetadataToInsertRow(insertRow, input.automationMetadata);
 
     const result = await supabase.from('digital_cards').insert(insertRow).select().single();
 

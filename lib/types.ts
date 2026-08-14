@@ -1,4 +1,7 @@
 import { SenderLinks } from './sender-links';
+import type { AutomationSyncStatus, CreationSource } from './card-automation';
+
+export type { AutomationSyncStatus, CreationSource } from './card-automation';
 
 export type CardMode = 'shared' | 'individual';
 
@@ -41,6 +44,11 @@ export interface DigitalCard {
   photo_mime_type?: string | null;
   photo_size_bytes?: number | null;
   photo_uploaded_at?: string | null;
+  creation_source?: CreationSource | null;
+  automation_sync_status?: AutomationSyncStatus;
+  automation_claimed_at?: string | null;
+  automation_ready_at?: string | null;
+  automation_last_error?: string | null;
 }
 
 export type Theme = 'thank_you' | 'birthday' | 'farewell';

@@ -1014,7 +1014,7 @@ describe('Phase 4B production guards', () => {
     expect(source).not.toMatch(/^export const /m);
   });
 
-  it('automation API supports individual mode; Shared create core unchanged', async () => {
+  it('automation API requires recipient_count; rejects shared mode', async () => {
     expect(
       parseInternalCreateCardRequest({
         platform: 'shopee',
@@ -1027,7 +1027,6 @@ describe('Phase 4B production guards', () => {
       parseInternalCreateCardRequest({
         platform: 'shopee',
         order_id: '260810ABC123XY',
-        recipient_count: 3,
       }).ok
     ).toBe(false);
 

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { applyAutomationMetadataToInsertRow, type CardAutomationMetadata } from './card-automation';
 import { buildRecipientRows, getRecipientsForCard } from './card-recipients';
 import {
   buildOrderNumber,
@@ -54,6 +55,7 @@ export type CreateIndividualCardCoreInput = {
   now?: Date;
   tokenFactory?: () => string;
   recipientTokenFactory?: () => string;
+  automationMetadata?: CardAutomationMetadata;
 };
 
 const RECIPIENT_INSERT_SELECT =
@@ -286,6 +288,7 @@ export async function createIndividualCardCore(
       insertRow.platform = platform;
       insertRow.external_order_id = externalOrderId;
     }
+    applyAutomationMetadataToInsertRow(insertRow, input.automationMetadata);
 
     const result = await supabase.from('digital_cards').insert(insertRow).select().single();
     card = result.data;

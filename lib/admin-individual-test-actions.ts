@@ -12,6 +12,7 @@ import { getSupabaseAdmin } from './supabase-admin';
 import { getConnectionErrorMessage } from './supabase';
 import { deleteCard } from './actions';
 import type { DigitalCardRecipient } from './types';
+import { adminTestAutomationMetadata } from './card-automation-metadata';
 
 function buildRecipientViews(
   recipients: DigitalCardRecipient[],
@@ -54,6 +55,7 @@ export async function adminCreateIndividualTestCard(input: {
       recipientCount: count,
       platform: null,
       externalOrderId: null,
+      automationMetadata: adminTestAutomationMetadata(),
     });
 
     if (!result.ok) {

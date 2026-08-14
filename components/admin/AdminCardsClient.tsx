@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
-  createCard,
   createIndividualCard,
   deleteCard,
   getCards,
@@ -43,6 +42,7 @@ import {
 import { hasCardPhoto } from '@/lib/card-photo';
 import { generateQRCodeDataURL, downloadDataUrl, orderQrFilename } from '@/lib/qr';
 import { copyToClipboard } from '@/lib/copy';
+import { AdminAutomationStatusPanel } from '@/components/admin/AdminAutomationStatusPanel';
 import { CardWithOrder } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,7 +60,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Copy, Eye, Loader2, Plus, Check, Trash2, Search, Download, CalendarClock, RotateCcw, ImageIcon, Gift, PanelRight, type LucideIcon } from 'lucide-react';
@@ -75,7 +74,10 @@ interface AdminCardsClientProps {
   initialError: string | null;
 }
 
-type AdminCardType = 'shared' | 'individual';
+type AdminCreateForm = {
+  order_number: string;
+  quantity: string;
+};
 
 function getLocalDateKey(isoString: string): string {
   const date = new Date(isoString);
@@ -261,9 +263,8 @@ export function AdminCardsClient({
     }
   };
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<AdminCreateForm>({
     order_number: '',
-    card_type: 'shared' as AdminCardType,
     quantity: '',
   });
 
@@ -377,30 +378,13 @@ export function AdminCardsClient({
       return;
     }
 
-    setCreating(true);
-
-    if (form.card_type === 'shared') {
-      const result = await createCard({ order_number: form.order_number });
-      if (!result.ok) {
-        toast.error('Failed to create card: ' + result.error);
-        setCreating(false);
-        return;
-      }
-      setForm({ order_number: '', card_type: 'shared', quantity: '' });
-      setShowCreateForm(false);
-      await loadCards();
-      setSelectedCard(result.card);
-      setCreating(false);
-      toast.success('Card created successfully!');
-      return;
-    }
-
     const quantity = Number(form.quantity);
     if (!Number.isInteger(quantity) || quantity <= 0) {
       toast.error('Please enter a valid gift quantity.');
-      setCreating(false);
       return;
     }
+
+    setCreating(true);
 
     const result = await createIndividualCard({
       order_number: form.order_number,
@@ -413,7 +397,7 @@ export function AdminCardsClient({
       return;
     }
 
-    setForm({ order_number: '', card_type: 'shared', quantity: '' });
+    setForm({ order_number: '', quantity: '' });
     setShowCreateForm(false);
     setIndividualProgress((current) => ({
       ...current,
@@ -716,47 +700,21 @@ export function AdminCardsClient({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Card Type</Label>
-                  <RadioGroup
-                    value={form.card_type}
-                    onValueChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        card_type: value as AdminCardType,
-                        quantity: value === 'shared' ? '' : current.quantity,
-                      }))
-                    }
-                    className="grid gap-2 sm:grid-cols-2"
-                  >
-                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 px-3 py-2.5 hover:bg-stone-50">
-                      <RadioGroupItem value="shared" id="card_type_shared" />
-                      <span className="text-sm text-stone-700">Shared</span>
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 px-3 py-2.5 hover:bg-stone-50">
-                      <RadioGroupItem value="individual" id="card_type_individual" />
-                      <span className="text-sm text-stone-700">Individual</span>
-                    </label>
-                  </RadioGroup>
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.quantity}
+                    onChange={(e) => setForm((current) => ({ ...current, quantity: e.target.value }))}
+                    placeholder="e.g. 20"
+                    required
+                  />
+                  <p className="text-xs text-stone-500">
+                    This creates one unique recipient QR for each gift.
+                  </p>
                 </div>
-
-                {form.card_type === 'individual' ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={form.quantity}
-                      onChange={(e) => setForm((current) => ({ ...current, quantity: e.target.value }))}
-                      placeholder="e.g. 3"
-                      required
-                    />
-                    <p className="text-xs text-stone-500">
-                      This creates one unique recipient QR for each gift.
-                    </p>
-                  </div>
-                ) : null}
 
                 <div className="flex gap-2">
                   <Button type="submit" disabled={creating} className="bg-rose-500 hover:bg-rose-600">
@@ -768,7 +726,7 @@ export function AdminCardsClient({
                     variant="outline"
                     onClick={() => {
                       setShowCreateForm(false);
-                      setForm({ order_number: '', card_type: 'shared', quantity: '' });
+                      setForm({ order_number: '', quantity: '' });
                     }}
                   >
                     Cancel
@@ -1054,6 +1012,8 @@ export function AdminCardsClient({
                   ) : null}
                 </dl>
               </div>
+
+              <AdminAutomationStatusPanel card={selectedCard} />
 
               <div className="rounded-lg border border-stone-200 bg-stone-50/80 px-3 py-3 text-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Availability</p>

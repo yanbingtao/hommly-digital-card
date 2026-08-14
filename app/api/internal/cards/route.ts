@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { verifyAutomationRequest } from '@/lib/automation-auth';
 import { handleInternalCreateCard } from '@/lib/internal-card-api';
-import { parseInternalCreateCardRequest } from '@/lib/internal-card-request';
+import {
+  parseInternalCreateCardRequest,
+  SHARED_CARD_CREATION_DISABLED,
+} from '@/lib/internal-card-request';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +25,12 @@ export async function POST(request: Request) {
 
   const parsed = parseInternalCreateCardRequest(body);
   if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
+    return NextResponse.json(
+      parsed.code === SHARED_CARD_CREATION_DISABLED
+        ? { error: parsed.code, message: parsed.error }
+        : { error: parsed.error },
+      { status: 400 }
+    );
   }
 
   try {

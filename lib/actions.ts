@@ -32,6 +32,7 @@ import { getRecipientsForCard } from './card-recipients';
 import { buildBuyerEditUrl } from './individual-card-urls';
 import { getCanonicalSiteOrigin } from './internal-card-response';
 import { assertBuyerEditAuthorized } from './edit-pin-auth';
+import { adminProductionAutomationMetadata } from './card-automation-metadata';
 
 export type { AdminIndividualCardProgress };
 
@@ -42,6 +43,7 @@ export async function createCard(data: {
     await assertAdminAuthenticated();
     const result = await createCardCore(getSupabase(), {
       orderNumberInput: data.order_number,
+      automationMetadata: adminProductionAutomationMetadata(),
     });
     if (!result.ok) {
       return { ok: false, error: result.error };
@@ -78,6 +80,7 @@ export async function createIndividualCard(data: {
       recipientCount: quantityResult.count,
       platform: null,
       externalOrderId: null,
+      automationMetadata: adminProductionAutomationMetadata(),
     });
 
     if (!result.ok) {

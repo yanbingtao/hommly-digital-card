@@ -100,35 +100,26 @@ Set `AUTOMATION_SECRET` in the server environment alongside the Supabase service
 
 ### Request
 
+**New Digital Cards are Individual-only.** `recipient_count` is always required. Shared mode creation is disabled (`SHARED_CARD_CREATION_DISABLED`).
+
 | Field | Required | Description |
 |-------|----------|-------------|
 | `platform` | Yes | Currently `shopee` |
 | `order_id` | Yes | External order ID (6–32 alphanumeric characters) |
-| `mode` | No | `shared` (default) or `individual` |
-| `recipient_count` | Individual only | Number of unique recipient View URLs to create |
+| `recipient_count` | Yes | Number of unique recipient View URLs to create |
+| `mode` | No | Optional; must be `individual` if supplied. `shared` is rejected. |
 
-**Backward compatibility:** omitting `mode` is equivalent to `mode: "shared"`. Existing automation payloads continue to create Shared cards unchanged.
-
-**Shared mode** — legacy or explicit:
+**Preferred automation payload** (mode may be omitted):
 
 ```json
 {
   "platform": "shopee",
-  "order_id": "ORDER001"
+  "order_id": "ORDER002",
+  "recipient_count": 37
 }
 ```
 
-```json
-{
-  "platform": "shopee",
-  "order_id": "ORDER001",
-  "mode": "shared"
-}
-```
-
-Do not send `recipient_count` for Shared requests.
-
-**Individual mode** — one parent card with N recipient View URLs:
+Explicit Individual mode is also accepted:
 
 ```json
 {
@@ -141,26 +132,19 @@ Do not send `recipient_count` for Shared requests.
 
 `recipient_count` is the number of unique recipient View QRs required (gift quantity). It does **not** include an Order ID label row — do not add +1.
 
-Unknown request fields are rejected.
+**Rejected requests:**
 
-### Responses
+- `{ platform, order_id }` without `recipient_count` → `400`
+- `{ ..., mode: "shared" }` → `400 SHARED_CARD_CREATION_DISABLED`
+- Individual request against an existing historical Shared card → `409 CARD_MODE_MISMATCH` (existing card is preserved)
 
-**Shared** (`mode` omitted or `"shared"`):
+**Shared mode** is supported only for **historical** cards already in the database. New Shared cards cannot be created via API or Admin UI.
 
-```json
-{
-  "status": "created",
-  "mode": "shared",
-  "platform": "shopee",
-  "order_id": "ORDER001",
-  "card_name": "ORDER001-20260812120000",
-  "created_at": "2026-08-12T04:00:00.000Z",
-  "buyer_edit_url": "https://hommly.online/e/...",
-  "recipient_view_url": "https://hommly.online/g/..."
-}
-```
+### Admin manual creation
 
-**Individual**:
+At `/admin/cards`, create with **Order Number** + **Quantity** only (Individual is implicit). Each quantity creates Gift #01 … Gift #N with unique View URLs and one buyer Edit URL.
+
+### Response (Individual)
 
 ```json
 {
@@ -181,6 +165,8 @@ Unknown request fields are rejected.
 
 Individual responses do **not** include `recipient_view_url` (no parent compatibility token is exposed).
 
+Historical **Shared** response shape (`recipient_view_url`) remains in `buildSharedInternalCardResponse` for old records only — not returned by new create requests.
+
 ### HTTP status codes
 
 | Status | Meaning |
@@ -196,12 +182,32 @@ Idempotency key: `(platform, order_id)`. Repeating the same Individual request w
 
 ### Card modes
 
-| `mode` omitted / value | Behavior |
-|------------------------|----------|
-| omitted or `shared` | One Shared card; single `recipient_view_url` |
-| `individual` + `recipient_count=N` | One parent card + N unique recipient `view_url` values |
+| Creation path | Behavior |
+|---------------|----------|
+| Admin `/admin/cards` | Individual only — Order Number + Quantity |
+| `POST /api/internal/cards` | Individual only — `recipient_count` required |
+| Historical Shared cards | Read/edit/view via existing URLs; not deleted or converted |
 
-Until the Shopee automation repo is updated, all production calls omit `mode` and therefore remain Shared.
+### Mac automation — Admin-created cards (Phase A)
+
+Cards created manually at `/admin/cards` are marked `creation_source=admin` and `automation_sync_status=pending`. The Hommly Mac mini **pulls** these cards (hommly.online does not push, print, or send Lark).
+
+**Platform identity:** Admin-created cards persist `platform=admin` (without `external_order_id`) so they never collide with Shopee `(platform, order_id)` identities. The pending API exposes `platform: "admin"` and `order_id` as the admin-entered order label (timestamp suffix stripped from `card_name` when present).
+
+| Endpoint | Method | Body | Purpose |
+|----------|--------|------|---------|
+| `/api/internal/cards/pending-automation` | GET | — | List Admin Individual cards with status `pending`, `failed`, or **stale `claimed`** |
+| `/api/internal/cards/automation-claim` | POST | `{ "card_id": "<uuid>" }` | Claim one card for local QR/print/Lark prep (idempotent reclaim for stale claims) |
+| `/api/internal/cards/automation-ready` | POST | `{ "card_id": "<uuid>" }` | Mark Mac-side preparation complete |
+| `/api/internal/cards/automation-failed` | POST | `{ "card_id": "<uuid>", "error": "..." }` | Record a safe error; card returns to pull queue on retry |
+
+All endpoints require `Authorization: Bearer <AUTOMATION_SECRET>`.
+
+Pending list items include `card_id` plus Individual URL shapes (`recipient_count`, `recipients[]`). No `recipient_view_url` on new Admin queue cards. Stale claimed rows keep `automation_sync_status: "claimed"` and include `claim_stale: true`.
+
+**Crash recovery:** Mac claims `pending`/`failed` → `claimed` (sets `automation_claimed_at`). If Mac crashes before it persists `remote_card_id`, the card stays `claimed` and is **not** returned while the claim is fresh. After **30 minutes** (`AUTOMATION_CLAIM_TIMEOUT_MINUTES`), the server treats the claim as stale and the pending GET returns it again. The next Mac poll can reclaim it (compare-and-set refresh of `automation_claimed_at`). Mac does **not** compute expiry and does not need `--card-id` to recover a lost claim. Fresh `claimed` and `ready` cards are not re-queued. Historical Shared cards and Shopee automation cards stay out of this queue.
+
+**Migration required:** run `supabase/migrations/20260814180000_add_card_automation_sync.sql` before deploying Phase A. Stale-claim recovery uses the existing `automation_claimed_at` column (no additional migration).
 
 ## Scripts
 

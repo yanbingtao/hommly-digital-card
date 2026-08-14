@@ -3,6 +3,8 @@ import { validateIndividualRecipientCount } from './individual-recipient-count';
 
 export const SHOPEE_ORDER_ID_RE = /^[A-Za-z0-9]{6,32}$/;
 
+export const SHARED_CARD_CREATION_DISABLED = 'SHARED_CARD_CREATION_DISABLED';
+
 export const INTERNAL_CARD_MODES = ['shared', 'individual'] as const;
 export type InternalCardMode = (typeof INTERNAL_CARD_MODES)[number];
 
@@ -12,13 +14,14 @@ export type ParsedInternalCreateRequest = {
   ok: true;
   platform: AutomationPlatform;
   orderId: string;
-  mode: InternalCardMode;
-  recipientCount?: number;
+  mode: 'individual';
+  recipientCount: number;
 };
 
 export type InvalidInternalCreateRequest = {
   ok: false;
   error: string;
+  code?: typeof SHARED_CARD_CREATION_DISABLED;
 };
 
 function isInternalCardMode(value: string): value is InternalCardMode {
@@ -58,29 +61,29 @@ export function parseInternalCreateCardRequest(
   }
 
   const modeRaw = record.mode;
-  let mode: InternalCardMode = 'shared';
   if (modeRaw !== undefined) {
     if (typeof modeRaw !== 'string' || !modeRaw.trim()) {
-      return { ok: false, error: 'mode must be shared or individual' };
+      return { ok: false, error: 'mode must be individual' };
     }
     const normalizedMode = modeRaw.trim().toLowerCase();
-    if (!isInternalCardMode(normalizedMode)) {
-      return { ok: false, error: 'mode must be shared or individual' };
+    if (normalizedMode === 'shared') {
+      return {
+        ok: false,
+        error: 'Shared card creation is disabled; recipient_count is required for Individual cards',
+        code: SHARED_CARD_CREATION_DISABLED,
+      };
     }
-    mode = normalizedMode;
+    if (normalizedMode !== 'individual') {
+      return { ok: false, error: 'mode must be individual' };
+    }
   }
 
   const hasRecipientCount = Object.prototype.hasOwnProperty.call(record, 'recipient_count');
-
-  if (mode === 'shared') {
-    if (hasRecipientCount) {
-      return { ok: false, error: 'recipient_count is not allowed for shared mode' };
-    }
-    return { ok: true, platform, orderId, mode };
-  }
-
   if (!hasRecipientCount) {
-    return { ok: false, error: 'recipient_count is required for individual mode' };
+    return {
+      ok: false,
+      error: 'recipient_count is required for Individual card creation',
+    };
   }
 
   const countValidation = validateIndividualRecipientCount(record.recipient_count);
@@ -92,7 +95,7 @@ export function parseInternalCreateCardRequest(
     ok: true,
     platform,
     orderId,
-    mode,
+    mode: 'individual',
     recipientCount: countValidation.count,
   };
 }
