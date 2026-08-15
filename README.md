@@ -209,6 +209,36 @@ Pending list items include `card_id` plus Individual URL shapes (`recipient_coun
 
 **Migration required:** run `supabase/migrations/20260814180000_add_card_automation_sync.sql` before deploying Phase A. Stale-claim recovery uses the existing `automation_claimed_at` column (no additional migration).
 
+### Mac automation — Edit PIN lookup (Phase 1)
+
+Trusted read-only lookup for an existing Shopee Individual card Edit PIN (AES recover decrypt; never regenerates):
+
+```http
+GET /api/internal/cards/edit-pin?platform=shopee&order_id=<SHOPEE_ORDER_ID>
+Authorization: Bearer <AUTOMATION_SECRET>
+```
+
+Success body:
+
+```json
+{
+  "platform": "shopee",
+  "order_id": "260814XXXX",
+  "card_name": "260814XXXX-20260814120000",
+  "edit_pin": "728046"
+}
+```
+
+Resolves by canonical `(platform, external_order_id)` first. If no row matches,
+a **legacy recovery** path may resolve exactly one Individual non-Admin card whose
+`orders.order_number` starts with `<ORDER_ID>-` (for rows created before identity
+metadata was populated). Multiple prefix matches fail safely (404). Rejects
+historical Shared cards, Admin cards, missing/non-recoverable PIN ciphertext, and
+non-`shopee` platforms. Does not return edit tokens, URLs, hashes, or recipient
+data. Requires `EDIT_PIN_ENCRYPTION_KEY` (same key as Admin Reveal). No migration
+required for lookup; optional one-time backfill of `external_order_id` is preferred
+over relying on legacy recovery long-term.
+
 ## Scripts
 
 | Command | Description |
