@@ -403,6 +403,25 @@ describe('createIndividualCardCore', () => {
     expect(result.recipients.every((r) => r.status === 'draft')).toBe(true);
   });
 
+  it('persists platform=shopee and external_order_id exactly for Shopee Individual creates', async () => {
+    let tokenCounter = 0;
+    const supabase = createIndividualMockSupabase();
+    const result = await createIndividualCardCore(supabase as never, {
+      orderNumberInput: '260815EAUNGANW',
+      recipientCount: 2,
+      platform: 'shopee',
+      externalOrderId: '260815EAUNGANW',
+      tokenFactory: () => 'shopeePublic01',
+      recipientTokenFactory: () => `recipView${String(++tokenCounter).padStart(8, '0')}`,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.card.platform).toBe('shopee');
+    expect(result.card.external_order_id).toBe('260815EAUNGANW');
+    expect(supabase._state.cards[0]?.platform).toBe('shopee');
+    expect(supabase._state.cards[0]?.external_order_id).toBe('260815EAUNGANW');
+  });
+
   it('returns existing parent and recipients for same platform/order + same count', async () => {
     const existing = individualCardFixture();
     const existingRecipients = [1, 2, 3].map((n) =>

@@ -457,6 +457,32 @@ describe('handleInternalCreateCard — routing', () => {
     expect(result.body.recipients).toHaveLength(3);
   });
 
+  it('persists canonical Shopee identity on create (platform + external_order_id)', async () => {
+    const supabase = mockIndividualSupabase({ existingCard: null });
+    const parsed = parseInternalCreateCardRequest({
+      platform: 'shopee',
+      order_id: '260815EAUNGANW',
+      recipient_count: 2,
+    });
+    assertParsed(parsed);
+    const result = await handleInternalCreateCard(supabase as never, parsed);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.body.platform).toBe('shopee');
+    expect(result.body.order_id).toBe('260815EAUNGANW');
+    const stored = (supabase as { _state?: { cards: Array<Record<string, unknown>> } })._state
+      ?.cards?.[0];
+    // Prefer inspecting createIndividualCardCore result via second lookup if mock exposes state.
+    expect(result.body.mode).toBe('individual');
+    // Re-create should hit identity and return existing — proves identity was stored.
+    const again = await handleInternalCreateCard(supabase as never, parsed);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.httpStatus).toBe(200);
+    expect(again.body.status).toBe('existing');
+    void stored;
+  });
+
   it('routes omitted mode with recipient_count as Individual', async () => {
     const supabase = mockIndividualSupabase({ existingCard: null });
     const parsed = parseInternalCreateCardRequest({
