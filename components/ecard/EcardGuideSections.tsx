@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import {
   ArrowDown,
+  ArrowRight,
+  Check,
   ExternalLink,
   Eye,
   Gift,
@@ -229,9 +231,9 @@ export function QrDifferenceSection() {
             </p>
             <ul className="mt-6 space-y-3 text-sm text-[#55382D]">
               {[
-                'Opens the private editor',
-                'Protected by your Edit PIN',
-                'You can update while the eCard stays available',
+              'Opens the private editor',
+              'Protected by your Edit PIN',
+              'Manages every eCard in your order',
               ].map((line) => (
                 <li key={line} className="flex gap-2.5">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#DE7C72]" />
@@ -259,9 +261,9 @@ export function QrDifferenceSection() {
             </p>
             <ul className="mt-6 space-y-3 text-sm text-white/95">
               {[
-                'Shows the personalised experience',
-                'Optional Viewing PIN if you set one',
-                'Designed to feel like unwrapping a moment',
+              'Unique to each gift in the order',
+              'Optional Viewing PIN if you set one',
+              'Designed to feel like unwrapping a moment',
               ].map((line) => (
                 <li key={line} className="flex gap-2.5">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-white/80" />
@@ -449,34 +451,153 @@ export function ContentSection() {
   );
 }
 
+/** Illustrative gift row used to show what a selection looks like. */
+function GiftSelectionRow({ label, selected }: { label: string; selected: boolean }) {
+  return (
+    <li
+      className={cn(
+        'flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium',
+        selected
+          ? 'bg-[#FCE8E4] text-[#55382D] ring-1 ring-[#DE7C72]/30'
+          : 'bg-[#FFF9F5] text-[#6F625C]/75 ring-1 ring-[#E8D9D2]/70'
+      )}
+    >
+      <span
+        className={cn(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
+          selected ? 'bg-[#DE7C72] text-white' : 'bg-white ring-1 ring-[#E8D9D2]'
+        )}
+      >
+        {selected ? <Check className="h-2.5 w-2.5" strokeWidth={3.5} aria-hidden /> : null}
+      </span>
+      {label}
+    </li>
+  );
+}
+
 export function MultipleCardsSection() {
+  const gifts = ['Gift #01', 'Gift #02', 'Gift #03', 'Gift #04'];
+
+  const options = [
+    {
+      title: 'Edit one',
+      copy: 'Choose one eCard and personalise it just for that recipient.',
+      selection: [true, false, false, false],
+      caption: 'One recipient updated',
+    },
+    {
+      title: 'Select a few',
+      copy: 'Choose multiple eCards and apply the same message, photo or details to them together.',
+      selection: [true, true, false, true],
+      caption: 'Selected recipients share the same content',
+    },
+    {
+      title: 'Update everyone',
+      copy: 'Select all eCards when you want every recipient to receive the same content.',
+      selection: [true, true, true, true],
+      caption: 'Everyone in the order updated at once',
+    },
+  ];
+
   return (
     <section id="multiple" className={cn(sectionPad, 'scroll-mt-24 bg-[#FFF9F5]')}>
-      <div className={cn('mx-auto max-w-3xl text-center', LANDING_MAX_WIDTH)}>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#DE7C72]">
-          One gift, many moments
-        </p>
-        <h2 className={cn(displayHeading, 'mt-3 text-3xl sm:text-4xl')}>
-          Edit one eCard — or several
-        </h2>
-        <p className={cn(bodyText, 'mx-auto mt-5 max-w-2xl text-base leading-relaxed')}>
-          Some Hommly orders include Individual eCards for multiple gifts. Use the
-          Edit QR and PIN to personalise one recipient, several, or all — each with
-          its own message and View QR.
-        </p>
-        <div className="mx-auto mt-10 flex max-w-xl flex-col gap-3 text-left sm:flex-row sm:gap-4">
-          <div className="flex-1 rounded-2xl bg-white px-5 py-4 ring-1 ring-[#E8D9D2]/90">
-            <p className="font-display text-sm font-semibold text-[#55382D]">Single gift</p>
-            <p className={cn(bodyText, 'mt-1 text-sm')}>
-              One Edit QR → one personalised eCard → one View QR.
+      <div className={cn('mx-auto', LANDING_MAX_WIDTH)}>
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#DE7C72]">
+            One Edit QR, flexible personalisation
+          </p>
+          <h2 className={cn(displayHeading, 'mt-3 text-3xl sm:text-4xl')}>
+            Personalise one, a few, or everyone
+          </h2>
+          <p className={cn(bodyText, 'mt-5 text-base leading-relaxed')}>
+            One Edit QR gives you access to every eCard in the order. Personalise each
+            one individually, select a few to update together, or apply the same content
+            to everyone.
+          </p>
+        </div>
+
+        <div className="mt-12 rounded-[1.75rem] bg-white p-6 ring-1 ring-[#E8D9D2]/90 sm:p-8">
+          <div className="grid items-center gap-6 sm:grid-cols-[auto_auto_1fr] sm:gap-7">
+            <div className="flex items-center gap-3 sm:flex-col sm:gap-2.5 sm:text-center">
+              <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#55382D] text-white">
+                <QrCode className="h-7 w-7" strokeWidth={1.4} aria-hidden />
+              </span>
+              <p className="font-display text-sm font-semibold text-[#55382D]">
+                One Edit QR
+              </p>
+            </div>
+
+            <div aria-hidden className="flex items-center text-[#DE7C72]/70">
+              <ArrowDown className="h-5 w-5 sm:hidden" />
+              <ArrowRight className="hidden h-5 w-5 sm:block" />
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6F625C]/80">
+                Choose who to personalise
+              </p>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {gifts.map((gift) => (
+                  <li
+                    key={gift}
+                    className="flex items-center gap-2 rounded-xl bg-[#FFF9F5] px-3 py-2 text-xs font-medium text-[#55382D] ring-1 ring-[#E8D9D2]/80"
+                  >
+                    <Gift className="h-3.5 w-3.5 text-[#DE7C72]" aria-hidden />
+                    {gift}
+                  </li>
+                ))}
+                <li className="flex items-center rounded-xl px-2 py-2 text-xs font-medium text-[#6F625C]/70">
+                  and the rest of the order
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-start gap-2.5 border-t border-[#E8D9D2]/70 pt-5">
+            <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#FCE8E4] text-[#DE7C72]">
+              <Eye className="h-3 w-3" aria-hidden />
+            </span>
+            <p className={cn(bodyText, 'text-sm leading-relaxed')}>
+              Each gift still has its own unique View QR, so every recipient opens only
+              their own eCard.
             </p>
           </div>
-          <div className="flex-1 rounded-2xl bg-white px-5 py-4 ring-1 ring-[#E8D9D2]/90">
-            <p className="font-display text-sm font-semibold text-[#55382D]">Multiple gifts</p>
-            <p className={cn(bodyText, 'mt-1 text-sm')}>
-              Choose which gifts to personalise — each recipient gets their own view.
-            </p>
-          </div>
+        </div>
+
+        <ul className="mt-6 grid gap-5 lg:grid-cols-3">
+          {options.map((option) => (
+            <li
+              key={option.title}
+              className="flex flex-col rounded-[1.5rem] bg-white p-6 ring-1 ring-[#E8D9D2]/90"
+            >
+              <h3 className="font-display text-lg font-semibold text-[#55382D]">
+                {option.title}
+              </h3>
+              <p className={cn(bodyText, 'mt-2 text-sm leading-relaxed')}>{option.copy}</p>
+
+              <ul className="mt-5 space-y-1.5" aria-hidden>
+                {gifts.map((gift, index) => (
+                  <GiftSelectionRow
+                    key={gift}
+                    label={gift}
+                    selected={option.selection[index]}
+                  />
+                ))}
+              </ul>
+
+              <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-[#6F625C]/70">
+                {option.caption}
+              </p>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mx-auto mt-6 flex max-w-2xl items-start gap-2.5 rounded-2xl bg-[#FCE8E4]/60 px-5 py-4">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#DE7C72]" aria-hidden />
+          <p className="text-sm leading-relaxed text-[#55382D]">
+            Mix and match anytime — some eCards can share the same content while others
+            stay completely personal.
+          </p>
         </div>
       </div>
     </section>
@@ -502,7 +623,7 @@ export function ConditionsSection() {
             </dt>
             <dd className={cn(bodyText, 'mt-2 text-sm leading-relaxed')}>
               Your Hommly eCard stays available for {ECARD_AVAILABILITY_MONTHS} months
-              from the order date, unless a different expiry is set for your card.
+              from the order date.
             </dd>
           </div>
           <div>
