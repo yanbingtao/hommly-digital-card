@@ -88,6 +88,17 @@
     --hommly-coral: #f43f5e;
   }
 
+  .hommly-ecard-guide {
+    --hommly-ivory: #fff9f5;
+    --hommly-coral-brand: #de7c72;
+    --hommly-blush-soft: #fce8e4;
+    --hommly-chocolate: #55382d;
+    --hommly-warm-text: #6f625c;
+    --hommly-peach: #f7d5c7;
+    --hommly-sky: #ddeaf6;
+    --hommly-butter: #f7e8a8;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .hommly-landing .motion-safe\:animate-hommly-float,
     .hommly-landing .motion-safe\:animate-hommly-rise,

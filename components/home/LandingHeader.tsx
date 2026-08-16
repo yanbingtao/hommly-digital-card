@@ -7,7 +7,23 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
 import { cn } from '@/lib/utils';
 
-export function LandingHeader() {
+export type LandingNavLink = {
+  href: string;
+  label: string;
+  /** Hide below this breakpoint (Tailwind prefix). Default: always visible on sm+. */
+  visibility?: 'sm' | 'md' | 'always';
+};
+
+const DEFAULT_NAV: LandingNavLink[] = [
+  { href: '#how-it-works', label: 'How It Works', visibility: 'sm' },
+  { href: '#preview', label: 'Preview', visibility: 'md' },
+];
+
+type LandingHeaderProps = {
+  navLinks?: LandingNavLink[];
+};
+
+export function LandingHeader({ navLinks = DEFAULT_NAV }: LandingHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -35,18 +51,31 @@ export function LandingHeader() {
         <BrandLogo className="min-h-11" />
 
         <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Main navigation">
-          <a
-            href="#how-it-works"
-            className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100/80 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60 sm:inline-flex"
-          >
-            How It Works
-          </a>
-          <a
-            href="#preview"
-            className="hidden min-h-11 items-center rounded-lg px-3 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100/80 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60 md:inline-flex"
-          >
-            Preview
-          </a>
+          {navLinks.map((link) => {
+            const visibilityClass =
+              link.visibility === 'always'
+                ? 'inline-flex'
+                : link.visibility === 'md'
+                  ? 'hidden md:inline-flex'
+                  : 'hidden sm:inline-flex';
+            const isHash = link.href.startsWith('#');
+            const className = cn(
+              visibilityClass,
+              'min-h-11 items-center rounded-lg px-3 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100/80 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60'
+            );
+            if (isHash) {
+              return (
+                <a key={link.href + link.label} href={link.href} className={className}>
+                  {link.label}
+                </a>
+              );
+            }
+            return (
+              <Link key={link.href + link.label} href={link.href} className={className}>
+                {link.label}
+              </Link>
+            );
+          })}
           <a
             href={SHOP_URL}
             target="_blank"

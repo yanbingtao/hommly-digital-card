@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-assets';
@@ -115,6 +116,11 @@ export function LandingFooter() {
               <a href="#how-it-works" className={footerLinkClass}>
                 How It Works
               </a>
+            </li>
+            <li>
+              <Link href="/ecard" className={footerLinkClass}>
+                eCard guide
+              </Link>
             </li>
             <li>
               <a href="#preview" className={footerLinkClass}>
