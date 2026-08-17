@@ -9,6 +9,7 @@ import {
   Music2,
   PencilLine,
 } from 'lucide-react';
+import { HommlyCta } from '@/components/home/HommlyCta';
 import { HomeAssetImage } from '@/components/home/HomeAssetImage';
 import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-asset-paths';
 import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
@@ -313,15 +314,9 @@ export function HowItWorks({ assets }: HowItWorksProps) {
         </ol>
 
         <div className="mt-10 flex justify-center sm:mt-12">
-          <a
-            href={SHOP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-rose-600 transition-colors duration-200 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60"
-          >
+          <HommlyCta href={SHOP_URL} variant="primary" external>
             Explore Hommly Gifts
-            <span aria-hidden>↗</span>
-          </a>
+          </HommlyCta>
         </div>
       </div>
     </section>

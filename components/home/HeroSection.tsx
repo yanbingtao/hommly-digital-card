@@ -1,6 +1,7 @@
 import Image from 'next/image';
-import { Check, ExternalLink } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { HeroProductVisual } from '@/components/home/HeroProductVisual';
+import { HommlyCta } from '@/components/home/HommlyCta';
 import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-assets';
 import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
 import { cn } from '@/lib/utils';
@@ -97,22 +98,13 @@ export function HeroSection({ assets }: HeroSectionProps) {
             ))}
           </ul>
 
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a
-              href={SHOP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-rose-500 px-6 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
-            >
+          <div className="mt-7 flex flex-col gap-3.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3.5">
+            <HommlyCta href={SHOP_URL} variant="primary" external block className="sm:w-auto">
               Shop Gifts on Hommly.sg
-              <ExternalLink className="h-4 w-4" aria-hidden />
-            </a>
-            <a
-              href="#how-it-works"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-stone-200 bg-white/90 px-6 text-sm font-semibold text-stone-700 backdrop-blur-sm transition hover:border-stone-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 focus-visible:ring-offset-2"
-            >
+            </HommlyCta>
+            <HommlyCta href="#how-it-works" variant="secondary" block className="sm:w-auto">
               See How It Works
-            </a>
+            </HommlyCta>
           </div>
         </div>
 

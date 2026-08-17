@@ -3,7 +3,6 @@ import {
   ArrowDown,
   ArrowRight,
   Check,
-  ExternalLink,
   Eye,
   Gift,
   Heart,
@@ -18,6 +17,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
+import { HommlyCta } from '@/components/home/HommlyCta';
 import {
   ECARD_AVAILABILITY_MONTHS,
   HOMMLY_ECARD_EMAIL,
@@ -85,23 +85,20 @@ export function EcardHero() {
             warm, simple, and memorable.
           </p>
 
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <a
-              href={SHOP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#DE7C72] px-6 text-sm font-semibold text-white shadow-sm shadow-[#DE7C72]/30 transition hover:bg-[#d46d63] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DE7C72]/50 focus-visible:ring-offset-2"
-            >
+          <div className="mt-7 flex flex-col gap-3.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3.5">
+            <HommlyCta href={SHOP_URL} variant="primary" external block className="sm:w-auto">
               Shop Hommly Gifts
-              <ExternalLink className="h-4 w-4 opacity-90" aria-hidden />
-            </a>
-            <a
+            </HommlyCta>
+            <HommlyCta
               href="#what-is"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#E8D9D2] bg-white/80 px-6 text-sm font-semibold text-[#55382D] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DE7C72]/40"
+              variant="secondary"
+              icon={ArrowDown}
+              iconMotion="down"
+              block
+              className="sm:w-auto"
             >
               Learn how it works
-              <ArrowDown className="h-4 w-4 opacity-70" aria-hidden />
-            </a>
+            </HommlyCta>
           </div>
         </div>
 
@@ -290,22 +287,22 @@ export function SenderFlowSection() {
     {
       n: '02',
       title: 'Scan the Edit QR',
-      copy: 'Enter the Edit PIN from your order communication to open the editor.',
+      copy: 'Scan the Edit QR and enter your 6-digit Edit PIN to access the editor.',
       image: ECARD_STEP_IMAGES[1],
       alt: 'Scanning the Edit QR and entering the Edit PIN on a phone',
     },
     {
       n: '03',
       title: 'Personalise & save',
-      copy: 'Write your message, add a photo, choose a theme, then save. Share the View QR with your recipient.',
+      copy: 'Add your message, photo, links, eCard style and optional Viewing PIN, then save when you are ready.',
       image: ECARD_STEP_IMAGES[2],
       alt: 'The eCard editor with a message, photo and theme selected',
     },
-  ];
+  ] as const;
 
   return (
     <section id="create" className={cn(sectionPad, 'scroll-mt-24 bg-white')}>
-      <div className={cn('mx-auto', LANDING_MAX_WIDTH)}>
+      <div className={cn('mx-auto min-w-0', LANDING_MAX_WIDTH)}>
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#DE7C72]">
             For senders
@@ -319,10 +316,29 @@ export function SenderFlowSection() {
           </p>
         </div>
 
-        <ol className="mt-12 grid gap-10 sm:grid-cols-3 sm:gap-8">
-          {steps.map((step) => (
-            <li key={step.n} className="relative">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#FCE8E4] ring-1 ring-[#E8D9D2]/80">
+        {/*
+          Mobile: stacked tutorial — number → title → copy → image per step.
+          Desktop: same per-step ownership in a 3-column grid (image stays with its copy).
+        */}
+        <ol className="mt-12 space-y-0 sm:grid sm:grid-cols-3 sm:gap-8 sm:space-y-0">
+          {steps.map((step, index) => (
+            <li
+              key={step.n}
+              className={cn(
+                'min-w-0',
+                index < steps.length - 1 &&
+                  'border-b border-[#E8D9D2]/80 pb-12 mb-12 sm:mb-0 sm:border-b-0 sm:pb-0'
+              )}
+            >
+              <p className="font-display text-4xl font-semibold tabular-nums leading-none text-[#DE7C72]/55">
+                {step.n}
+              </p>
+              <h3 className="mt-3 font-display text-lg font-semibold tracking-[-0.02em] text-[#55382D]">
+                {step.title}
+              </h3>
+              <p className={cn(bodyText, 'mt-2 text-sm leading-relaxed')}>{step.copy}</p>
+
+              <div className="relative mt-5 aspect-[4/3] w-full max-w-full overflow-hidden rounded-2xl bg-[#FCE8E4] ring-1 ring-[#E8D9D2]/80">
                 <Image
                   src={step.image}
                   alt={step.alt}
@@ -331,13 +347,6 @@ export function SenderFlowSection() {
                   className="object-cover"
                 />
               </div>
-              <p className="mt-5 font-display text-4xl font-semibold tabular-nums text-[#F7D5C7]">
-                {step.n}
-              </p>
-              <h3 className="mt-3 font-display text-lg font-semibold text-[#55382D]">
-                {step.title}
-              </h3>
-              <p className={cn(bodyText, 'mt-2 text-sm leading-relaxed')}>{step.copy}</p>
             </li>
           ))}
         </ol>
@@ -456,7 +465,7 @@ function GiftSelectionRow({ label, selected }: { label: string; selected: boolea
   return (
     <li
       className={cn(
-        'flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium',
+        'flex min-w-0 items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium',
         selected
           ? 'bg-[#FCE8E4] text-[#55382D] ring-1 ring-[#DE7C72]/30'
           : 'bg-[#FFF9F5] text-[#6F625C]/75 ring-1 ring-[#E8D9D2]/70'
@@ -470,7 +479,7 @@ function GiftSelectionRow({ label, selected }: { label: string; selected: boolea
       >
         {selected ? <Check className="h-2.5 w-2.5" strokeWidth={3.5} aria-hidden /> : null}
       </span>
-      {label}
+      <span className="min-w-0 leading-snug">{label}</span>
     </li>
   );
 }
@@ -480,102 +489,141 @@ export function MultipleCardsSection() {
 
   const options = [
     {
+      eyebrow: 'One gift',
       title: 'Edit one',
       copy: 'Choose one eCard and personalise it just for that recipient.',
       selection: [true, false, false, false],
+      greatFor: ['Personal gifts', 'Birthdays', 'Farewells'],
+      useCase: 'Give one recipient their own message, photo and personal details.',
       caption: 'One recipient updated',
     },
     {
+      eyebrow: 'Several gifts',
       title: 'Select a few',
-      copy: 'Choose multiple eCards and apply the same message, photo or details to them together.',
+      copy: 'Choose multiple eCards and apply the same content to them together.',
       selection: [true, true, false, true],
+      greatFor: ['Teams', 'Teacher gifts', 'Small groups'],
+      useCase:
+        'Share the same message or details with selected recipients while keeping the rest personalised.',
       caption: 'Selected recipients share the same content',
     },
     {
+      eyebrow: 'All gifts',
       title: 'Update everyone',
-      copy: 'Select all eCards when you want every recipient to receive the same content.',
+      copy: 'Select all eCards when every recipient should receive the same content.',
       selection: [true, true, true, true],
+      greatFor: ['Corporate gifting', 'Welcome gifts', 'Events & bulk orders'],
+      useCaseLead: 'A smart choice for bulk gifting.',
+      useCase:
+        'Add your company message, website and social links once, then apply them to every eCard in the order.',
       caption: 'Everyone in the order updated at once',
     },
   ];
 
   return (
     <section id="multiple" className={cn(sectionPad, 'scroll-mt-24 bg-[#FFF9F5]')}>
-      <div className={cn('mx-auto', LANDING_MAX_WIDTH)}>
+      <div className={cn('mx-auto min-w-0', LANDING_MAX_WIDTH)}>
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#DE7C72]">
             One Edit QR, flexible personalisation
           </p>
-          <h2 className={cn(displayHeading, 'mt-3 text-3xl sm:text-4xl')}>
+          <h2 className={cn(displayHeading, 'mt-3 text-balance text-3xl sm:text-4xl')}>
             Personalise one, a few, or everyone
           </h2>
-          <p className={cn(bodyText, 'mt-5 text-base leading-relaxed')}>
+          <p className={cn(bodyText, 'mt-5 text-pretty text-base leading-relaxed')}>
             One Edit QR gives you access to every eCard in the order. Personalise each
             one individually, select a few to update together, or apply the same content
             to everyone.
           </p>
         </div>
 
-        <div className="mt-12 rounded-[1.75rem] bg-white p-6 ring-1 ring-[#E8D9D2]/90 sm:p-8">
-          <div className="grid items-center gap-6 sm:grid-cols-[auto_auto_1fr] sm:gap-7">
-            <div className="flex items-center gap-3 sm:flex-col sm:gap-2.5 sm:text-center">
+        {/* Overview — visually distinct from the example cards below */}
+        <div className="mt-8 min-w-0 rounded-[1.85rem] bg-gradient-to-b from-white to-[#FFF9F5] px-5 py-6 shadow-[0_18px_40px_-32px_rgba(85,56,45,0.28)] ring-1 ring-[#E8D9D2]/95 sm:mt-12 sm:rounded-[1.75rem] sm:bg-white sm:bg-none sm:p-8 sm:shadow-none">
+          {/* Mobile: vertical flow. Desktop: existing horizontal overview. */}
+          <div className="flex min-w-0 flex-col items-stretch gap-5 sm:grid sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-center sm:gap-7">
+            <div className="flex min-w-0 items-center gap-3.5 sm:flex-col sm:gap-2.5 sm:text-center">
               <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#55382D] text-white">
                 <QrCode className="h-7 w-7" strokeWidth={1.4} aria-hidden />
               </span>
-              <p className="font-display text-sm font-semibold text-[#55382D]">
-                One Edit QR
-              </p>
+              <div className="min-w-0 flex-1 sm:flex-none sm:text-center">
+                <p className="font-display text-lg font-semibold tracking-[-0.02em] text-[#55382D] sm:text-sm">
+                  One Edit QR
+                </p>
+                <p className={cn(bodyText, 'mt-1 text-sm leading-relaxed sm:hidden')}>
+                  One Edit QR gives you access to every eCard in the order.
+                </p>
+              </div>
             </div>
 
-            <div aria-hidden className="flex items-center text-[#DE7C72]/70">
+            <div
+              aria-hidden
+              className="flex items-center justify-center text-[#DE7C72]/70 sm:justify-start"
+            >
               <ArrowDown className="h-5 w-5 sm:hidden" />
               <ArrowRight className="hidden h-5 w-5 sm:block" />
             </div>
 
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6F625C]/80">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6F625C]/80 sm:tracking-[0.16em]">
                 Choose who to personalise
               </p>
-              <ul className="mt-3 flex flex-wrap gap-2">
+              {/* Mobile: wrap chips cleanly. Desktop: wrap as before. */}
+              <ul
+                className="mt-3 flex max-w-full flex-wrap gap-2"
+                aria-label="Example gifts in the order"
+              >
                 {gifts.map((gift) => (
                   <li
                     key={gift}
-                    className="flex items-center gap-2 rounded-xl bg-[#FFF9F5] px-3 py-2 text-xs font-medium text-[#55382D] ring-1 ring-[#E8D9D2]/80"
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-medium text-[#55382D] ring-1 ring-[#E8D9D2]/80 sm:bg-[#FFF9F5]"
                   >
-                    <Gift className="h-3.5 w-3.5 text-[#DE7C72]" aria-hidden />
+                    <Gift className="h-3.5 w-3.5 shrink-0 text-[#DE7C72]" aria-hidden />
                     {gift}
                   </li>
                 ))}
-                <li className="flex items-center rounded-xl px-2 py-2 text-xs font-medium text-[#6F625C]/70">
-                  and the rest of the order
-                </li>
               </ul>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-[#6F625C]/70">
+                and the rest of the order
+              </p>
             </div>
           </div>
 
-          <div className="mt-6 flex items-start gap-2.5 border-t border-[#E8D9D2]/70 pt-5">
+          <div className="mt-6 flex min-w-0 items-start gap-2.5 border-t border-[#E8D9D2]/70 pt-5">
             <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#FCE8E4] text-[#DE7C72]">
               <Eye className="h-3 w-3" aria-hidden />
             </span>
-            <p className={cn(bodyText, 'text-sm leading-relaxed')}>
+            <p className={cn(bodyText, 'min-w-0 flex-1 text-sm leading-relaxed')}>
               Each gift still has its own unique View QR, so every recipient opens only
               their own eCard.
             </p>
           </div>
         </div>
 
-        <ul className="mt-6 grid gap-5 lg:grid-cols-3">
+        {/* Examples divider — clarifies hierarchy after overview */}
+        <div className="mx-auto mt-10 max-w-2xl text-center sm:mt-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#DE7C72]">
+            Ways to personalise
+          </p>
+          <p className={cn(bodyText, 'mt-2 text-sm leading-relaxed sm:mt-2.5')}>
+            Use the same Edit QR to personalise one, several, or all gifts.
+          </p>
+        </div>
+
+        <ul className="mt-5 grid min-w-0 gap-4 sm:mt-6 sm:gap-5 md:grid-cols-2 lg:grid-cols-3 lg:items-stretch">
           {options.map((option) => (
             <li
               key={option.title}
-              className="flex flex-col rounded-[1.5rem] bg-white p-6 ring-1 ring-[#E8D9D2]/90"
+              className="flex h-full min-w-0 flex-col rounded-[1.5rem] bg-white p-5 ring-1 ring-[#E8D9D2]/90 sm:p-6"
             >
-              <h3 className="font-display text-lg font-semibold text-[#55382D]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#DE7C72]/90">
+                {option.eyebrow}
+              </p>
+              <h3 className="mt-2 font-display text-lg font-semibold text-[#55382D]">
                 {option.title}
               </h3>
               <p className={cn(bodyText, 'mt-2 text-sm leading-relaxed')}>{option.copy}</p>
 
-              <ul className="mt-5 space-y-1.5" aria-hidden>
+              <ul className="mt-5 min-w-0 space-y-1.5" aria-hidden>
                 {gifts.map((gift, index) => (
                   <GiftSelectionRow
                     key={gift}
@@ -585,16 +633,46 @@ export function MultipleCardsSection() {
                 ))}
               </ul>
 
-              <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-[#6F625C]/70">
+              <div className="mt-5 min-w-0 rounded-[13px] bg-[#FFF9F5] px-3.5 py-3.5 ring-1 ring-[#E8D9D2]/70">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6F625C]/75">
+                  Great for
+                </p>
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {option.greatFor.map((label) => (
+                    <li
+                      key={label}
+                      className="rounded-md bg-white px-2 py-1 text-[12px] font-medium leading-snug text-[#55382D] ring-1 ring-[#E8D9D2]/80"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+                {'useCaseLead' in option && option.useCaseLead ? (
+                  <p className="mt-2 text-[13px] font-semibold leading-snug text-[#55382D]">
+                    {option.useCaseLead}
+                  </p>
+                ) : null}
+                <p
+                  className={cn(
+                    bodyText,
+                    'text-[13px] leading-relaxed',
+                    'useCaseLead' in option && option.useCaseLead ? 'mt-1' : 'mt-2'
+                  )}
+                >
+                  {option.useCase}
+                </p>
+              </div>
+
+              <p className="mt-auto pt-4 text-[11px] font-medium uppercase leading-relaxed tracking-[0.12em] text-[#6F625C]/70 sm:tracking-[0.14em]">
                 {option.caption}
               </p>
             </li>
           ))}
         </ul>
 
-        <div className="mx-auto mt-6 flex max-w-2xl items-start gap-2.5 rounded-2xl bg-[#FCE8E4]/60 px-5 py-4">
+        <div className="mx-auto mt-6 flex max-w-2xl min-w-0 items-start gap-2.5 rounded-2xl bg-[#FCE8E4]/60 px-4 py-4 sm:px-5">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#DE7C72]" aria-hidden />
-          <p className="text-sm leading-relaxed text-[#55382D]">
+          <p className="min-w-0 text-sm leading-relaxed text-[#55382D]">
             Mix and match anytime — some eCards can share the same content while others
             stay completely personal.
           </p>
@@ -746,22 +824,13 @@ export function EcardFinalCta() {
             <p className="mt-4 text-base text-white/80">
               Shop selected Hommly gifts, then scan to create — they scan to view.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a
-                href={SHOP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#DE7C72] px-6 text-sm font-semibold text-white transition hover:bg-[#e88b82] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-              >
+            <div className="mt-8 flex flex-col gap-3.5 sm:flex-row sm:gap-3.5">
+              <HommlyCta href={SHOP_URL} variant="primary" external block className="sm:w-auto">
                 Shop on Hommly.sg
-                <ExternalLink className="h-4 w-4" aria-hidden />
-              </a>
-              <a
-                href="/"
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/25 bg-white/5 px-6 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-              >
+              </HommlyCta>
+              <HommlyCta href="/" variant="onDark" block className="sm:w-auto">
                 Back to Hommly eCard home
-              </a>
+              </HommlyCta>
             </div>
           </div>
         </div>

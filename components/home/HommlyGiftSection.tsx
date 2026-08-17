@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react';
+import { HommlyCta } from '@/components/home/HommlyCta';
 import { HomeAssetImage } from '@/components/home/HomeAssetImage';
 import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-assets';
 import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
@@ -24,15 +24,9 @@ export function HommlyGiftSection({ assets }: HommlyGiftSectionProps) {
               Choose an eligible gift from Hommly.sg and add a personal eCard at no extra cost. The
               physical gift is what they unwrap — the Hommly eCard is what makes it personal.
             </p>
-            <a
-              href={SHOP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-8 inline-flex min-h-12 items-center gap-2 rounded-xl bg-stone-900 px-6 text-sm font-semibold text-white transition hover:bg-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2"
-            >
+            <HommlyCta href={SHOP_URL} variant="primary" external className="mt-8">
               Explore Hommly Gifts
-              <ExternalLink className="h-4 w-4" aria-hidden />
-            </a>
+            </HommlyCta>
           </div>
 
           <div className="relative mx-auto w-full max-w-md">

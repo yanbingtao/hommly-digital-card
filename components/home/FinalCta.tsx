@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
+import { HommlyCta } from '@/components/home/HommlyCta';
 import { HOME_ASSETS, type HomeAssetAvailability } from '@/lib/home-assets';
 import {
   HOMMLY_CONTACT_URL,
@@ -71,15 +72,9 @@ export function FinalCta({ assets }: FinalCtaProps) {
             <p className="mt-4 max-w-xl text-base text-white/90">
               Choose your gift on Hommly.sg and add a Hommly eCard.
             </p>
-            <a
-              href={SHOP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-8 inline-flex min-h-12 items-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-stone-900 shadow-lg transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-500"
-            >
+            <HommlyCta href={SHOP_URL} variant="inverse" external className="mt-8">
               Shop Gifts on Hommly.sg
-              <ExternalLink className="h-4 w-4" aria-hidden />
-            </a>
+            </HommlyCta>
           </div>
         </div>
       </div>

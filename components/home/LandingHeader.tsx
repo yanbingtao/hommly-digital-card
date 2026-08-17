@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
+import { HommlyCta } from '@/components/home/HommlyCta';
 import { LANDING_MAX_WIDTH, SHOP_URL } from './constants';
 import { cn } from '@/lib/utils';
 
@@ -76,15 +76,9 @@ export function LandingHeader({ navLinks = DEFAULT_NAV }: LandingHeaderProps) {
               </Link>
             );
           })}
-          <a
-            href={SHOP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-rose-500 px-4 text-sm font-semibold text-white shadow-sm shadow-rose-500/25 transition hover:bg-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
-          >
+          <HommlyCta href={SHOP_URL} variant="header" external className="ml-1">
             Shop Gifts
-            <ExternalLink className="h-3.5 w-3.5 opacity-90" aria-hidden />
-          </a>
+          </HommlyCta>
           <Link
             href="/admin/login"
             className="ml-1 hidden min-h-11 items-center px-2 text-xs font-medium text-stone-400 transition hover:text-stone-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 sm:inline-flex"
