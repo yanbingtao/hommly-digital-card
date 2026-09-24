@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 import {
   assertProcessedImageWithinLimit,
   compressImageBeforeUpload,
-  PHOTO_PROCESS_FAILED_MESSAGE,
+  toCustomerPhotoError,
 } from '@/lib/compress-image';
-import { validateImageFile } from '@/lib/card-photo';
+import { CARD_PHOTO_CUSTOMER_HINT, validateImageFile } from '@/lib/card-photo';
 import { getIndividualRecipientPhotoPreview } from '@/lib/individual-recipient-editor-actions';
 import type { IndividualPhotoMode } from '@/lib/individual-recipient-editor-types';
 import { toast } from 'sonner';
@@ -28,6 +28,8 @@ type CardIndividualPhotoSectionProps = {
   onClearPending: () => void;
 };
 
+type PreparePhase = 'idle' | 'preparing' | 'optimising';
+
 export function CardIndividualPhotoSection({
   editToken,
   recipientIds,
@@ -43,10 +45,11 @@ export function CardIndividualPhotoSection({
 }: CardIndividualPhotoSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const [phase, setPhase] = useState<PreparePhase>('idle');
   const [existingPreviewUrl, setExistingPreviewUrl] = useState<string | null>(null);
   const isSingle = recipientIds.length === 1;
   const showPhotoPicker = photoMode === 'one_photo';
+  const preparingPhoto = phase !== 'idle';
 
   const sectionTitle = isSingle ? 'Add a photo' : 'Photo for selected gifts';
   const sectionDescription = isSingle
@@ -58,6 +61,9 @@ export function CardIndividualPhotoSection({
   const emptyPickerCopy = isSingle
     ? 'Choose a photo for this eCard'
     : 'Choose a photo for all selected gifts';
+  const hintCopy = isSingle
+    ? CARD_PHOTO_CUSTOMER_HINT
+    : `One photo shared across selected gifts. ${CARD_PHOTO_CUSTOMER_HINT}`;
 
   const loadExistingPreview = useCallback(async () => {
     if (mixed || pendingPreviewUrl || photoMode !== 'one_photo') {
@@ -109,8 +115,9 @@ export function CardIndividualPhotoSection({
       return;
     }
 
-    setPreparingPhoto(true);
+    setPhase('preparing');
     try {
+      setPhase('optimising');
       const compressed = await compressImageBeforeUpload(file);
       assertProcessedImageWithinLimit(compressed.blob.size);
       const previewObjectUrl = URL.createObjectURL(compressed.blob);
@@ -118,12 +125,11 @@ export function CardIndividualPhotoSection({
         new File([compressed.blob], compressed.fileName, { type: compressed.mimeType }),
         previewObjectUrl
       );
+      toast.success('Photo added');
     } catch (err: unknown) {
-      const message =
-        err instanceof Error && err.message ? err.message : PHOTO_PROCESS_FAILED_MESSAGE;
-      toast.error(message);
+      toast.error(toCustomerPhotoError(err));
     } finally {
-      setPreparingPhoto(false);
+      setPhase('idle');
     }
   };
 
@@ -135,6 +141,13 @@ export function CardIndividualPhotoSection({
       setExistingPreviewUrl(null);
     }
   };
+
+  const statusLabel =
+    phase === 'preparing'
+      ? 'Preparing photo…'
+      : phase === 'optimising'
+        ? 'Optimising photo…'
+        : null;
 
   return (
     <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
@@ -204,18 +217,12 @@ export function CardIndividualPhotoSection({
 
         {showPhotoPicker ? (
           <>
-            <ul className="space-y-0.5 text-[11px] text-stone-500">
-              <li>
-                {isSingle
-                  ? 'JPG, PNG, or WebP · Max 5MB original · optimised under 1MB'
-                  : 'One photo shared across selected gifts · JPG, PNG, or WebP · Max 5MB original · optimised under 1MB'}
-              </li>
-            </ul>
+            <p className="text-[11px] text-stone-500">{hintCopy}</p>
 
-            {preparingPhoto ? (
+            {statusLabel ? (
               <div className="flex min-h-[9rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-200 bg-white">
                 <Loader2 className="h-5 w-5 animate-spin text-stone-300" />
-                <p className="text-sm text-stone-500">Preparing your photo…</p>
+                <p className="text-sm text-stone-500">{statusLabel}</p>
               </div>
             ) : loadingPreview && !previewUrl ? (
               <div className="flex min-h-[9rem] items-center justify-center rounded-xl border border-dashed border-stone-200 bg-white">
@@ -250,7 +257,7 @@ export function CardIndividualPhotoSection({
             <input
               ref={inputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*,image/heic,image/heif,.heic,.heif"
               className="hidden"
               disabled={disabled || preparingPhoto}
               onChange={(event) => void handleFileChange(event)}
@@ -263,7 +270,11 @@ export function CardIndividualPhotoSection({
               disabled={disabled || preparingPhoto}
               onClick={() => inputRef.current?.click()}
             >
-              <ImagePlus className="mr-2 h-4 w-4" />
+              {preparingPhoto ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus className="mr-2 h-4 w-4" />
+              )}
               {previewUrl ? 'Replace photo' : 'Choose photo'}
             </Button>
           </>

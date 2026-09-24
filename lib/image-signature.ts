@@ -44,14 +44,14 @@ export function assertAllowedImageBinary(
 ): { ok: true; mime: DetectedImageMime } | { ok: false; error: string } {
   const detected = detectImageMimeFromBytes(bytes);
   if (!detected) {
-    return { ok: false, error: 'Please upload a JPG, PNG, or WebP image.' };
+    return { ok: false, error: "That file can't be used as a photo. Please choose a different image." };
   }
 
   if (claimedMime && claimedMime !== detected) {
     // Allow jpeg/jpg alias mismatch only when both are jpeg family.
     const claimedIsJpeg = claimedMime === 'image/jpeg' || claimedMime === 'image/jpg';
     if (!(claimedIsJpeg && detected === 'image/jpeg')) {
-      return { ok: false, error: 'Please upload a JPG, PNG, or WebP image.' };
+      return { ok: false, error: "That file can't be used as a photo. Please choose a different image." };
     }
   }
 

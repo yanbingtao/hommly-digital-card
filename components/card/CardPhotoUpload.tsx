@@ -9,9 +9,13 @@ import { toast } from 'sonner';
 import {
   assertProcessedImageWithinLimit,
   compressImageBeforeUpload,
-  PHOTO_PROCESS_FAILED_MESSAGE,
+  toCustomerPhotoError,
 } from '@/lib/compress-image';
-import { hasCardPhoto, validateImageFile } from '@/lib/card-photo';
+import {
+  CARD_PHOTO_CUSTOMER_HINT,
+  hasCardPhoto,
+  validateImageFile,
+} from '@/lib/card-photo';
 import { CardWithOrder } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +28,8 @@ interface CardPhotoUploadProps {
   onCardUpdated: (updates: Partial<CardWithOrder>) => void;
 }
 
+type UploadPhase = 'idle' | 'preparing' | 'optimising' | 'uploading';
+
 export function CardPhotoUpload({
   editToken,
   card,
@@ -33,10 +39,21 @@ export function CardPhotoUpload({
   onCardUpdated,
 }: CardPhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const localPreviewRef = useRef<string | null>(null);
+  const [phase, setPhase] = useState<UploadPhase>('idle');
   const [removing, setRemoving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const busy = phase !== 'idle' || removing;
+
+  const clearLocalPreview = useCallback(() => {
+    if (localPreviewRef.current) {
+      URL.revokeObjectURL(localPreviewRef.current);
+      localPreviewRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearLocalPreview(), [clearLocalPreview]);
 
   const loadPreview = useCallback(async () => {
     if (!hasCardPhoto(card)) {
@@ -76,13 +93,19 @@ export function CardPhotoUpload({
       return;
     }
 
-    setPreparingPhoto(true);
+    setPhase('preparing');
+    clearLocalPreview();
+
     try {
+      setPhase('optimising');
       const compressed = await compressImageBeforeUpload(file);
       assertProcessedImageWithinLimit(compressed.blob.size);
-      setPreparingPhoto(false);
-      setUploading(true);
 
+      const localUrl = URL.createObjectURL(compressed.blob);
+      localPreviewRef.current = localUrl;
+      setPreviewUrl(localUrl);
+
+      setPhase('uploading');
       const formData = new FormData();
       formData.append('edit_token', editToken);
       formData.append(
@@ -101,22 +124,30 @@ export function CardPhotoUpload({
       };
 
       if (!response.ok) {
-        toast.error(data.error ?? 'Failed to upload photo');
+        clearLocalPreview();
+        await loadPreview();
+        toast.error(
+          data.error && !/supabase|mime|storage|jwt|policy/i.test(data.error)
+            ? data.error
+            : "We couldn't upload this photo. Please try again."
+        );
         return;
       }
 
       if (data.card) {
         onCardUpdated(data.card);
       }
-      setPreviewUrl(data.previewUrl ?? null);
-      toast.success('Photo uploaded');
+      if (data.previewUrl) {
+        clearLocalPreview();
+        setPreviewUrl(data.previewUrl);
+      }
+      toast.success('Photo added');
     } catch (err: unknown) {
-      const message =
-        err instanceof Error && err.message ? err.message : PHOTO_PROCESS_FAILED_MESSAGE;
-      toast.error(message);
+      clearLocalPreview();
+      await loadPreview();
+      toast.error(toCustomerPhotoError(err));
     } finally {
-      setPreparingPhoto(false);
-      setUploading(false);
+      setPhase('idle');
     }
   };
 
@@ -133,7 +164,7 @@ export function CardPhotoUpload({
       const data = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        toast.error(data.error ?? 'Failed to remove photo');
+        toast.error(data.error ?? "We couldn't remove this photo. Please try again.");
         return;
       }
 
@@ -144,14 +175,24 @@ export function CardPhotoUpload({
         photo_size_bytes: null,
         photo_uploaded_at: null,
       });
+      clearLocalPreview();
       setPreviewUrl(null);
       toast.success('Photo removed');
     } catch {
-      toast.error('Failed to remove photo');
+      toast.error("We couldn't remove this photo. Please try again.");
     } finally {
       setRemoving(false);
     }
   };
+
+  const statusLabel =
+    phase === 'preparing'
+      ? 'Preparing photo…'
+      : phase === 'optimising'
+        ? 'Optimising photo…'
+        : phase === 'uploading'
+          ? 'Uploading…'
+          : null;
 
   return (
     <div className="overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 via-rose-50/40 to-white shadow-sm">
@@ -178,13 +219,11 @@ export function CardPhotoUpload({
 
       {enabled && (
       <div className="space-y-3 border-t border-rose-100 bg-white/70 px-4 py-4">
-        <ul className="space-y-0.5 text-[11px] text-rose-800/55">
-          <li>One photo only · JPG, PNG, or WebP · Max 5MB original · optimised under 1MB</li>
-        </ul>
-        {preparingPhoto ? (
+        <p className="text-[11px] text-rose-800/55">{CARD_PHOTO_CUSTOMER_HINT}</p>
+        {statusLabel ? (
           <div className="flex min-h-[9rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200/80 bg-rose-50/40">
             <Loader2 className="h-5 w-5 animate-spin text-rose-300" />
-            <p className="text-sm text-stone-600">Preparing your photo…</p>
+            <p className="text-sm text-stone-600">{statusLabel}</p>
           </div>
         ) : previewUrl ? (
           <div className="space-y-3">
@@ -215,9 +254,9 @@ export function CardPhotoUpload({
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/*,image/heic,image/heif,.heic,.heif"
           className="hidden"
-          disabled={disabled || uploading || preparingPhoto || removing}
+          disabled={disabled || busy}
           onChange={(event) => void handleFileChange(event)}
         />
 
@@ -226,22 +265,22 @@ export function CardPhotoUpload({
             type="button"
             variant="outline"
             className="flex-1 border-rose-200 bg-white hover:bg-rose-50"
-            disabled={disabled || uploading || preparingPhoto || removing}
+            disabled={disabled || busy}
             onClick={() => inputRef.current?.click()}
           >
-            {uploading || preparingPhoto ? (
+            {busy && phase !== 'idle' ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
               <ImagePlus className="mr-2 h-4 w-4" />
             )}
-            {hasCardPhoto(card) ? 'Replace photo' : 'Upload photo'}
+            {hasCardPhoto(card) ? 'Replace photo' : 'Choose photo'}
           </Button>
           {hasCardPhoto(card) && (
             <Button
               type="button"
               variant="outline"
               className="flex-1 border-stone-200 text-stone-600 hover:bg-stone-50"
-              disabled={disabled || uploading || preparingPhoto || removing}
+              disabled={disabled || busy}
               onClick={() => void handleRemove()}
             >
               {removing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
