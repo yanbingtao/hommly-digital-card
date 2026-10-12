@@ -12,7 +12,7 @@ import { Loader2, Lock } from 'lucide-react';
 
 export function AdminLoginForm() {
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get('next') || '/admin/cards';
+  const nextPath = searchParams.get('next') || '/admin';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export function AdminLoginForm() {
       }
 
       // Full page load ensures the session cookie is sent on the next request.
-      window.location.assign(result.redirectTo || '/admin/cards');
+      window.location.assign(result.redirectTo || '/admin');
     });
   };
 
