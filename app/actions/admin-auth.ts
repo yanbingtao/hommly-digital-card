@@ -11,7 +11,7 @@ import {
 export async function loginAdmin(
   username: string,
   password: string,
-  redirectTo = '/admin/cards'
+  redirectTo = '/admin'
 ): Promise<{ success: boolean; redirectTo?: string; error?: string }> {
   const trimmedUsername = username.trim();
   const trimmedPassword = password;
@@ -33,7 +33,7 @@ export async function loginAdmin(
 
   cookies().set(ADMIN_SESSION_COOKIE, getAdminSessionToken(), getAdminCookieOptions());
 
-  const safeRedirect = redirectTo.startsWith('/admin') ? redirectTo : '/admin/cards';
+  const safeRedirect = /^\/admin(?:\/|$)/.test(redirectTo) ? redirectTo : '/admin';
 
   return { success: true, redirectTo: safeRedirect };
 }
