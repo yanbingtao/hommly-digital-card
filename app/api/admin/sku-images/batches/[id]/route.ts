@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { skuAccess } from '@/lib/sku-images/auth';
-import { readBatch, readJobs, skuStore, uuidPattern } from '@/lib/sku-images/store';
+import { readAsset, readBatch, readJobs, skuStore, uuidPattern } from '@/lib/sku-images/store';
 import { SKU_BUCKET } from '@/lib/sku-images/types';
 export const dynamic='force-dynamic';
 export async function GET(_:Request,{params}:{params:{id:string}}){
@@ -19,8 +19,8 @@ export async function POST(request:Request,{params}:{params:{id:string}}){
       const jobs=await readJobs(batch.id);
       const expected=Array.from(new Set(jobs.map(j=>j.source_path.split('/').pop())));
       const {data:sources,error}=await skuStore().storage.from(SKU_BUCKET).list(`${batch.id}/sources`,{limit:100});
-      const {data:assets,error:assetError}=await skuStore().storage.from(SKU_BUCKET).list(`${batch.id}/assets`,{limit:10});
-      if(error || assetError || !expected.every(n=>sources?.some(f=>f.name===n)) || !assets?.some(f=>f.name==='logo.png') || (batch.halal_path && !assets.some(f=>f.name==='halal.png')))return NextResponse.json({error:'Complete the image/logo uploads first.'},{status:400});
+      await readAsset(batch.logo_path);if(batch.halal_path)await readAsset(batch.halal_path);
+      if(error || !expected.every(n=>sources?.some(f=>f.name===n)))return NextResponse.json({error:'Complete the photo uploads first.'},{status:400});
       const {error:updateError}=await skuStore().from('sku_image_batches').update({uploads_ready:true}).eq('id',batch.id);
       if(updateError)throw updateError;
     }else if(body.action==='retry' && typeof body.jobId==='string' && uuidPattern.test(body.jobId)){

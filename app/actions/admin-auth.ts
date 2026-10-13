@@ -40,5 +40,6 @@ export async function loginAdmin(
 
 export async function logoutAdmin(): Promise<{ success: boolean }> {
   cookies().delete(ADMIN_SESSION_COOKIE);
+  cookies().delete('hommly_sku_staff_session');
   return { success: true };
 }

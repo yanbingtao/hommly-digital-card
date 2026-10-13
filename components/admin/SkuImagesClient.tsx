@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
-import { SKU_BUCKET, SKU_COLUMNS, SKU_MODELS, matchSkuImage, validateSkuInputs, type SkuInput, type SkuJob, type SkuBatch } from '@/lib/sku-images/types';
+import { SKU_BUCKET, SKU_COLUMNS, SKU_MODELS, skuVariants, matchSkuImage, validateSkuInputs, type SkuInput, type SkuJob, type SkuBatch } from '@/lib/sku-images/types';
+import { readSkuWorksheet } from '@/lib/sku-images/excel';
 import { AdminLogoutButton } from './AdminLogoutButton';
 
 async function api(path:string,body?:unknown){
@@ -30,20 +31,22 @@ async function normalize(file:File):Promise<Blob>{
 }
 function saveBlob(blob:Blob,name:string){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 
-export function SkuImagesClient(){
+export function SkuImagesClient({staff=false}:{staff?:boolean}={}){
   const [rows,setRows]=useState<SkuInput[]>([]);const [files,setFiles]=useState<File[]>([]);
   const [excelName,setExcelName]=useState('');
   const excelInput=useRef<HTMLInputElement>(null);const photoInput=useRef<HTMLInputElement>(null);
-  const logoInput=useRef<HTMLInputElement>(null);const halalInput=useRef<HTMLInputElement>(null);
+
   const excelReadVersion=useRef(0);
-  const [logo,setLogo]=useState<File|null>(null);const [halalLogo,setHalalLogo]=useState<File|null>(null);
+  const [brand,setBrand]=useState<{logo:unknown;halal:unknown}|null>(null);
+  async function reloadBrand(){try{setBrand((await api('brand-assets')).assets);}catch(e){setError(e instanceof Error?e.message:'Cannot load Brand Assets.');}}
+  const [theme,setTheme]=useState('Christmas');
   const [model,setModel]=useState<string>(SKU_MODELS[0]);const [quality,setQuality]=useState('high');const [name,setName]=useState('Christmas listing test');
   const [error,setError]=useState('');const [message,setMessage]=useState('');const [busy,setBusy]=useState(false);const [running,setRunning]=useState(false);
   const [history,setHistory]=useState<SkuBatch[]>([]);const [batch,setBatch]=useState<SkuBatch|null>(null);const [jobs,setJobs]=useState<SkuJob[]>([]);const stop=useRef(false);
   const inputClass='mt-2 w-full rounded-lg border border-stone-200 bg-white p-3 text-sm';
   const buttonClass='rounded-lg bg-rose-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40';
   async function reloadHistory(){try{setHistory((await api('batches')).batches);}catch(e){setError(e instanceof Error?e.message:'Unable to load history.');}}
-  useEffect(()=>{void reloadHistory();},[]);
+  useEffect(()=>{void reloadHistory();void reloadBrand();},[]);
   useEffect(()=>{if(!model.startsWith('gpt-image-2.5') && ['max','xhigh'].includes(quality))setQuality('high');},[model,quality]);
   async function refresh(id:string){const data=await api(`batches/${id}`);setBatch(data.batch);setJobs(data.jobs);return data as {batch:SkuBatch;jobs:SkuJob[]};}
   async function readExcel(file:File){
@@ -52,24 +55,19 @@ export function SkuImagesClient(){
     try{
       if(file.size>5*1024*1024)throw new Error('Use an Excel file below 5 MB.');
       const {Workbook}=await import('exceljs');const workbook=new Workbook();await workbook.xlsx.load(await file.arrayBuffer());const sheet=workbook.worksheets[0];if(!sheet)throw new Error('Empty workbook.');
-      const columns=new Map<string,number>();sheet.getRow(1).eachCell((cell,i)=>{const key=String(cell.value??'').trim();if(columns.has(key))throw new Error('Duplicate column names.');columns.set(key,i);});
-      for(const column of SKU_COLUMNS)if(!columns.has(column))throw new Error(`Missing column: ${column}`);
-      const result:SkuInput[]=[];
-      sheet.eachRow((row,i)=>{if(i===1)return;const get=(key:string)=>{const v=row.getCell(columns.get(key) || 999).value;if(v && typeof v==='object')throw new Error(`Row ${i}: formulas/rich text are not supported in input cells.`);return String(v??'').trim();};if(SKU_COLUMNS.every(c=>!get(c)))return;
-        if(!/^(yes|no)$/i.test(get('Halal')) || !/^(yes|no)$/i.test(get('Name Sticker')))throw new Error(`Row ${i}: Halal and Name Sticker must be Yes or No.`);
-        result.push({sku:get('SKU'),imageFile:get('Image File'),productName:get('Product Name'),halal:/^yes$/i.test(get('Halal')),stickerLimit:Number(get('Sticker Limit')||20),theme:get('Theme'),notes:get('Special Notes'),itemType:columns.has('Item Type')?get('Item Type'):''});});
-      const issues=validateSkuInputs(result);if(issues.length)throw new Error(issues.join('\n'));if(version===excelReadVersion.current)setRows(result);
+      const result=readSkuWorksheet(sheet,theme);if(version===excelReadVersion.current)setRows(result);
     }catch(e){if(version===excelReadVersion.current)setError(e instanceof Error?e.message:'Cannot read workbook.');}
   }
-  const matching=rows.map(row=>({row,matched:matchSkuImage(row.imageFile,files.map(f=>f.name))}));
-  const ready=rows.length>0 && matching.every(m=>m.matched) && logo && (!rows.some(r=>r.halal)||halalLogo);
+  const effectiveRows=rows.map(row=>({...row,theme:theme.trim()||row.theme}));
+  const matching=effectiveRows.map(row=>({row,matched:matchSkuImage(row.imageFile,files.map(f=>f.name))}));
+  const ready=rows.length>0 && matching.every(m=>m.matched) && brand?.logo && (!rows.some(r=>r.halal)||brand?.halal);
   async function createBatch(){
-    if(!ready || !logo)return;setBusy(true);setError('');setMessage('Creating batch and uploading original images…');
+    if(!ready)return;setBusy(true);setError('');setMessage('Creating batch and uploading original images…');
     try{
-      const data=await api('batches',{name,model,quality,halalLogo:!!halalLogo,rows});
+      const data=await api('batches',{name,model,quality,rows:effectiveRows});
       const storage=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
       for(let i=0;i<data.uploads.length;i++){
-        const upload=data.uploads[i];const original=upload.kind==='logo'?logo:upload.kind==='halal'?halalLogo:files.find(f=>f.name===matching.find(m=>m.row.sku===upload.kind)?.matched);
+        const upload=data.uploads[i];const original=files.find(f=>f.name===matching.find(m=>m.row.sku===upload.kind)?.matched);
         if(!original)throw new Error('Missing upload.');const blob=await normalize(original);
         const {error:uploadError}=await storage.storage.from(SKU_BUCKET).uploadToSignedUrl(upload.path,upload.token,blob,{contentType:'image/png'});
         if(uploadError)throw new Error(`Upload failed for ${original.name}.`);setMessage(`Uploaded ${i+1}/${data.uploads.length}`);
@@ -104,16 +102,18 @@ export function SkuImagesClient(){
       zip.file('report.json',JSON.stringify(state.jobs.map(({outputUrl,...j})=>j),null,2));saveBlob(await zip.generateAsync({type:'blob'}),`hommly-${batch.id}.zip`);
     }catch(e){setError(e instanceof Error?e.message:'Download failed.');}finally{setBusy(false);}
   }
-  return <main className="min-h-screen bg-[#fdf8f3] px-5 py-8"><div className="mx-auto max-w-6xl"><header className="flex items-center justify-between"><Link href="/admin" className="text-sm text-stone-600 hover:underline">← Admin Portal</Link><AdminLogoutButton/></header><h1 className="mt-8 text-3xl font-bold">SKU Image Generator</h1><p className="mt-3 text-stone-600">Internal batch tool. One photo → two modern square listing images, with subtle hommly.sg watermarks.</p>
+  return <main className="min-h-screen bg-[#fdf8f3] px-5 py-8"><div className="mx-auto max-w-6xl"><header className="flex items-center justify-between"><Link href={staff?"/staff/sku-images":"/admin"} className="text-sm text-stone-600 hover:underline">{staff?"SKU Staff":"← Admin Portal"}</Link><AdminLogoutButton/></header><h1 className="mt-8 text-3xl font-bold">SKU Image Generator</h1><p className="mt-3 text-stone-600">Internal batch tool. Name Sticker Yes → two variants; No → one without sticker, with subtle hommly.sg watermarks.</p>
     {error&&<div role="alert" className="mt-5 whitespace-pre-line rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}{message&&<p role="status" className="mt-4 text-sm text-emerald-800">{message}</p>}
+    <section className="mt-5 flex flex-wrap items-center gap-4 rounded-xl border bg-white p-4 text-sm" aria-label="Brand Assets status"><strong>Brand Assets</strong><span>Logo: {brand?.logo?'Configured':'Not configured'}</span><span>Halal Mark: {brand?.halal?'Configured':'Not configured'}</span>{!staff&&<Link href="/admin/sku-images/brand-assets" className="underline">Manage Brand Assets</Link>}<button onClick={()=>void reloadBrand()} className="underline">Refresh assets</button></section>
+    {brand&&!brand.logo&&<p role="alert" className="mt-3 text-sm text-red-700">Official Hommly Logo missing. Ask an administrator to configure Brand Assets before creating a batch.</p>}
+    {rows.some(r=>r.halal)&&brand&&!brand.halal&&<p role="alert" className="mt-3 text-sm text-red-700">Authorized Halal Mark missing. Blocked rows: {rows.filter(r=>r.halal).map(r=>r.sku).join(', ')}. Ask an administrator to configure Brand Assets.</p>}
     <section className="mt-7 rounded-2xl border bg-white p-6"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">New batch</h2><a href="/api/admin/sku-images/template" className="text-sm underline">Download Excel template</a></div><div className="mt-5 grid gap-5 md:grid-cols-2">
+      <label>Theme for this batch<input className={inputClass} value={theme} onChange={e=>setTheme(e.target.value)} maxLength={200} placeholder="Christmas, Farewell…"/><span className="text-xs text-stone-500">Applies to every row. Special Notes are optional extra instructions.</span></label>
       <label>Batch name<input className={inputClass} value={name} onChange={e=>setName(e.target.value)} maxLength={100}/></label>
       <div><label>Excel tasks<input ref={excelInput} className={inputClass} type="file" accept=".xlsx" disabled={busy||running} onChange={e=>{if(e.target.files?.[0])void readExcel(e.target.files[0]);}}/></label>{excelName&&<div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-stone-50 p-2 text-sm"><span className="break-all">{excelName}</span><button type="button" aria-label="Remove selected Excel" className="shrink-0 text-rose-700 underline" disabled={busy||running} onClick={()=>{excelReadVersion.current++;setExcelName('');setRows([]);setError('');if(excelInput.current)excelInput.current.value='';}}>Remove</button></div>}</div>
       <div><label>Original product photos<input ref={photoInput} className={inputClass} type="file" multiple accept=".jpg,.jpeg,.png,.webp,.heic,.heif" disabled={busy||running} onChange={e=>{const selected=Array.from(e.target.files||[]);setFiles(old=>[...old.filter(f=>!selected.some(s=>s.name===f.name)),...selected]);if(photoInput.current)photoInput.current.value='';}}/><span className="text-xs text-stone-500">iPhone originals are converted automatically. Select more photos to add them to this list.</span></label>{files.length>0&&<><ul className="mt-3 space-y-2">{files.map((file,index)=><li key={file.name} className="flex items-center justify-between gap-3 rounded-lg bg-stone-50 p-2 text-sm"><span className="break-all">{file.name} <span className="text-xs text-stone-400">({(file.size/1024/1024).toFixed(1)} MB)</span></span><button type="button" aria-label={`Remove ${file.name}`} className="shrink-0 text-rose-700 underline" disabled={busy||running} onClick={()=>setFiles(old=>old.filter((_,i)=>i!==index))}>Remove</button></li>)}</ul><button type="button" className="mt-2 text-sm text-rose-700 underline" disabled={busy||running} onClick={()=>{setFiles([]);if(photoInput.current)photoInput.current.value='';}}>Remove all photos</button></>}</div>
-      <div><label>Official brand logo<input ref={logoInput} className={inputClass} type="file" accept=".jpg,.jpeg,.png,.webp" disabled={busy||running} onChange={e=>setLogo(e.target.files?.[0]||null)}/></label>{logo&&<div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-stone-50 p-2 text-sm"><span className="break-all">{logo.name}</span><button type="button" aria-label="Remove brand logo" className="text-rose-700 underline" disabled={busy||running} onClick={()=>{setLogo(null);if(logoInput.current)logoInput.current.value='';}}>Remove</button></div>}</div>
-      <div><label>Halal mark (required only for Halal Yes)<input ref={halalInput} className={inputClass} type="file" accept=".jpg,.jpeg,.png,.webp" disabled={busy||running} onChange={e=>setHalalLogo(e.target.files?.[0]||null)}/></label>{halalLogo&&<div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-stone-50 p-2 text-sm"><span className="break-all">{halalLogo.name}</span><button type="button" aria-label="Remove halal logo" className="text-rose-700 underline" disabled={busy||running} onClick={()=>{setHalalLogo(null);if(halalInput.current)halalInput.current.value='';}}>Remove</button></div>}</div>
       <div className="grid grid-cols-2 gap-3"><label>Model<select className={inputClass} value={model} onChange={e=>setModel(e.target.value)}>{SKU_MODELS.map(m=><option key={m}>{m}</option>)}</select></label><label>Quality<select className={inputClass} value={quality} onChange={e=>setQuality(e.target.value)}>{(model.startsWith('gpt-image-2.5')?['low','medium','high','xhigh','max']:['low','medium','high']).map(q=><option key={q}>{q}</option>)}</select></label></div>
-    </div>{rows.length>0&&<div className="mt-6 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">SKU</th><th className="p-2">Product</th><th className="p-2">Matched photo</th></tr></thead><tbody>{matching.map(({row,matched})=><tr key={row.sku} className="border-t"><td className="p-2">{row.sku}</td><td className="p-2">{row.productName}</td><td className={`p-2 ${!matched?'text-red-700':''}`}>{matched||`Missing: ${row.imageFile}`}</td></tr>)}</tbody></table></div>}<p className="mt-5 text-sm text-stone-500">{rows.length} source rows → {rows.length*2} outputs. Uploading does not call OpenAI. Maximum 100 sources per batch.</p><button className={`${buttonClass} mt-4`} disabled={!ready||busy||running||!name.trim()} onClick={()=>void createBatch()}>Create batch and upload photos</button></section>
+    </div>{rows.length>0&&<div className="mt-6 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">SKU</th><th className="p-2">Product</th><th className="p-2">Matched photo</th></tr></thead><tbody>{matching.map(({row,matched})=><tr key={row.sku} className="border-t"><td className="p-2">{row.sku}</td><td className="p-2">{row.productName}</td><td className={`p-2 ${!matched?'text-red-700':''}`}>{matched||`Missing: ${row.imageFile}`}</td></tr>)}</tbody></table></div>}<p className="mt-5 text-sm text-stone-500">{rows.length} source rows → {rows.reduce((n,row)=>n+skuVariants(row).length,0)} outputs. Uploading does not call OpenAI. Maximum 100 sources per batch.</p><button className={`${buttonClass} mt-4`} disabled={!ready||busy||running||!name.trim()||!theme.trim()} onClick={()=>void createBatch()}>Create batch and upload photos</button></section>
     <section className="mt-7 rounded-2xl border bg-white p-6"><h2 className="text-xl font-semibold">Saved batches</h2><div className="mt-4 flex flex-wrap gap-3"><select aria-label="Saved batch" className="max-w-full rounded-lg border p-3 text-sm" disabled={running||busy} value={batch?.id||''} onChange={e=>{if(e.target.value)void refresh(e.target.value).catch(err=>setError(err.message));}}><option value="">Select a batch</option>{history.map(b=><option key={b.id} value={b.id}>{b.name} · {new Date(b.created_at).toLocaleString()}</option>)}</select><button className="text-sm underline" disabled={running} onClick={()=>void reloadHistory()}>Refresh history</button></div>
     {batch&&<><p className="mt-5 text-sm">{batch.model} / {batch.quality} · {jobs.filter(j=>j.status==='succeeded').length}/{jobs.length} completed</p><p className="mt-2 text-sm text-stone-500">Each queued variant makes one paid OpenAI edit. Keep this page open while processing. Pause stops after the current image; completed results and queued tasks persist. No automatic retries of timed-out paid requests.</p><div className="mt-4 flex flex-wrap gap-3"><button className={buttonClass} disabled={running||busy||!batch.uploads_ready||!jobs.some(j=>j.status==='queued')} onClick={()=>void runBatch()}>{running?'Generating…':'Start / resume paid generation'}</button>{running&&<button className="rounded-lg border px-4 py-2" onClick={()=>{stop.current=true;setMessage('Stopping after the current image…');}}>Pause after current image</button>}<button className="rounded-lg border px-4 py-2" disabled={busy||running} onClick={()=>void refresh(batch.id).catch(e=>setError(e.message))}>Refresh progress</button><button className="rounded-lg border px-4 py-2" disabled={busy||running||!jobs.some(j=>j.outputUrl)} onClick={()=>void downloadZip()}>Download ZIP + report</button></div>
     <div className="mt-6 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">SKU / variant</th><th className="p-2">Status</th><th className="p-2">Detail</th></tr></thead><tbody>{jobs.map(j=><tr key={j.id} className="border-t"><td className="p-2">{j.sku}<br/>{j.variant}</td><td className="p-2">{j.status}</td><td className="p-2">{j.error}{(['failed','needs_review'].includes(j.status)||(j.status==='running'&&j.started_at&&Date.now()-Date.parse(j.started_at)>600000))&&<button className="ml-3 underline" disabled={running||busy} onClick={()=>{if(window.confirm('Retry may create another API charge. Check OpenAI usage first if the earlier request timed out. Retry this variant?'))void api(`batches/${batch.id}`,{action:'retry',jobId:j.id}).then(()=>refresh(batch.id)).catch(e=>setError(e.message));}}>Queue explicit retry</button>}</td></tr>)}</tbody></table></div>
