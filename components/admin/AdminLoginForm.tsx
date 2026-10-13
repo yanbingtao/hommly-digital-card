@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { loginSkuStaff } from '@/app/actions/sku-staff-auth';
 import { loginAdmin } from '@/app/actions/admin-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BrandLogo } from '@/components/BrandLogo';
 import { Loader2, Lock } from 'lucide-react';
 
-export function AdminLoginForm() {
+export function AdminLoginForm({staff=false}:{staff?:boolean}={}) {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get('next') || '/admin';
   const [username, setUsername] = useState('');
@@ -23,7 +24,7 @@ export function AdminLoginForm() {
     setError(null);
 
     startTransition(async () => {
-      const result = await loginAdmin(username, password, nextPath);
+      const result = await (staff ? loginSkuStaff(username,password) : loginAdmin(username, password, nextPath));
       if (!result.success) {
         setError(result.error || 'Login failed');
         return;
@@ -46,8 +47,8 @@ export function AdminLoginForm() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50">
               <Lock className="h-5 w-5 text-rose-500" aria-hidden />
             </div>
-            <CardTitle className="text-xl text-stone-800">Admin Management</CardTitle>
-            <p className="text-sm text-stone-500">Sign in with your admin username and password.</p>
+            <CardTitle className="text-xl text-stone-800">{staff?'SKU Staff Login':'Admin Management'}</CardTitle>
+            <p className="text-sm text-stone-500">Sign in with your {staff?'staff':'admin'} username and password.</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">

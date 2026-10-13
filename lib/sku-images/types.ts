@@ -4,7 +4,7 @@ export const SKU_COLUMNS = ['SKU', 'Image File', 'Product Name', 'Halal', 'Name 
 export type SkuInput = { sku: string; imageFile: string; productName: string; halal: boolean; stickerLimit: number; theme: string; notes: string; itemType: string };
 export type SkuStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'needs_review';
 export type SkuJob = { id: string; batch_id: string; source_id: string; sku: string; variant: 'with-sticker' | 'without-sticker'; status: SkuStatus; input: SkuInput; source_path: string; base_path: string | null; output_path: string | null; error: string | null; request_id: string | null; started_at: string | null; completed_at: string | null; outputUrl?: string };
-export type SkuBatch = { id: string; name: string; model: string; quality: string; logo_path: string; halal_path: string | null; uploads_ready: boolean; created_at: string };
+export type SkuBatch = { id: string; name: string; model: string; quality: string; logo_path: string; halal_path: string | null; logo_asset_id?: string|null; halal_asset_id?: string|null; uploads_ready: boolean; created_at: string };
 
 export function matchSkuImage(expected: string, files: string[]): string | null {
   if (files.includes(expected)) return expected;
