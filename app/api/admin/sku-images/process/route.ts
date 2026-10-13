@@ -20,7 +20,7 @@ export async function POST(request:Request){
   const job=jobs.find(j=>j.status==='queued');
   if(!job)return NextResponse.json({done:true});
   let source=job.source_path;
-  if(job.variant==='without-sticker'){
+  if(job.variant==='without-sticker' && job.input.nameSticker!==false){
     const first=jobs.find(j=>j.source_id===job.source_id && j.variant==='with-sticker');
     if(first?.status!=='succeeded' || !first.base_path){
       await skuStore().from('sku_image_jobs').update({status:'failed',error:'The with-sticker variant must succeed first; no API call was made.',completed_at:new Date().toISOString()}).eq('id',job.id).eq('status','queued');

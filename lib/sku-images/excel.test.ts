@@ -1,0 +1,10 @@
+import {it,expect,vi} from 'vitest';
+import ExcelJS from 'exceljs';
+import {readSkuWorksheet} from './excel';
+import {SKU_COLUMNS,skuVariants} from './types';
+import {skuPrompt} from './prompt';
+vi.mock('./auth',()=>({skuAccess:async()=>null}));
+import {GET} from '@/app/api/admin/sku-images/template/route';
+it('downloads a seven-column template that imports without SKU, product name, theme or notes',async()=>{const response=await GET();const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await response.arrayBuffer());const sheet=workbook.worksheets[0];expect((sheet.getRow(1).values as any[]).slice(1)).toEqual([...SKU_COLUMNS]);const rows=readSkuWorksheet(sheet,'Christmas');expect(rows).toHaveLength(5);expect(rows[0].sku).toBe('IMAGE-001');expect(rows[0].productName).toBe('');expect(rows[0].theme).toBe('Christmas');expect(skuPrompt(rows[0],'with-sticker',false)).toContain('Do not invent a product name');expect(workbook.worksheets[1].name).toBe('Instructions');});
+it('Name Sticker No produces just one physical removal output',()=>{const w=new ExcelJS.Workbook();const s=w.addWorksheet('Tasks');s.addRow([...SKU_COLUMNS]);s.addRow(['one.jpeg','','Badge','No','No',20,'Use an ivory background']);const row=readSkuWorksheet(s,'Christmas')[0];expect(skuVariants(row)).toEqual(['without-sticker']);expect(skuPrompt(row,'without-sticker',false)).toContain('entire physical adhesive name sticker');});
+it('keeps legacy SKU and accepts old template without Item Type',()=>{const w=new ExcelJS.Workbook();const s=w.addWorksheet('Tasks');s.addRow(['SKU','Image File','Product Name','Halal','Name Sticker','Sticker Limit','Theme','Special Notes']);s.addRow(['OLD-001','one.jpg','Badge','Yes','Yes',20,'Christmas','']);expect(readSkuWorksheet(s,'Christmas')[0].sku).toBe('OLD-001');});
