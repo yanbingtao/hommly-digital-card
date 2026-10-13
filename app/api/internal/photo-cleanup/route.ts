@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { logCronAuthDiagnostics, verifyCronRequest } from '@/lib/automation-auth';
+import { cleanupExpiredSkuTasks } from '@/lib/sku-images/cleanup';
 import { cleanupExpiredCardsAndPhotos } from '@/lib/card-photo-cleanup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration=300;
 
 /**
  * Daily lifecycle cleanup endpoint (expired cards + photos + orphan media).
@@ -35,9 +37,15 @@ async function runCleanup(request: Request) {
   });
 
   try {
-    const result = await cleanupExpiredCardsAndPhotos();
+    // Run independently: SKU storage failure must not prevent existing eCard cleanup.
+    const [cards,sku]=await Promise.allSettled([cleanupExpiredCardsAndPhotos(),cleanupExpiredSkuTasks()]);
+    if(cards.status==='rejected')throw cards.reason;
+    const result=cards.value;
+    const skuCleanup=sku.status==='fulfilled'?sku.value:{errors:['SKU cleanup failed']};
+    if(sku.status==='rejected' || (sku.status==='fulfilled' && sku.value.errors.length))console.error('[photo-cleanup] SKU cleanup requires retry');
     return NextResponse.json({
       ok: true,
+      skuCleanup,
       scanned: result.scanned,
       expiredCardsDeleted: result.expiredCardsDeleted,
       cleaned: result.cleaned,

@@ -28,8 +28,8 @@ export async function POST(request:Request){
     }
     source=first.base_path;
   }
-  const {data:claimed,error:claimError}=await skuStore().from('sku_image_jobs').update({status:'running',started_at:new Date().toISOString()}).eq('id',job.id).eq('status','queued').select('id');
-  if(claimError || !claimed?.length)return NextResponse.json({error:'Another browser claimed a task. Refresh progress.'},{status:409});
+  const {data:claimed,error:claimError}=await skuStore().rpc('claim_sku_image_job',{p_batch_id:batchId,p_job_id:job.id});
+  if(claimError || !claimed)return NextResponse.json({error:'Task expired, is being cleaned, or another browser claimed it. Refresh progress.'},{status:409});
   const encoder=new TextEncoder();let disconnected=false;
   const stream=new ReadableStream({
     async start(controller){

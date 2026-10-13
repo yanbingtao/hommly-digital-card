@@ -11,10 +11,7 @@ const input = z.object({ sku:z.string().max(100), nameSticker:z.boolean().option
 const schema = z.object({ name:z.string().trim().min(1).max(100), model:z.enum(SKU_MODELS), quality:z.enum(['low','medium','high','xhigh','max']), rows:z.array(input).min(1).max(100) });
 export async function GET() {
   const denied=await skuAccess(); if(denied)return denied;
-  try {
-    const { data,error }=await skuStore().from('sku_image_batches').select('*').order('created_at',{ascending:false}).limit(50);
-    return error ? NextResponse.json({error:'SKU storage is not ready. Apply the isolated SKU migration.'},{status:503}) : NextResponse.json({batches:data},{headers:{'Cache-Control':'no-store'}});
-  } catch { return NextResponse.json({error:'SKU storage is not configured. Configure server-side Supabase access before generating.'},{status:503}); }
+  return NextResponse.json({batches:[]},{headers:{'Cache-Control':'no-store'}});
 }
 export async function POST(request:Request) {
   const denied=await skuAccess(request); if(denied)return denied;
