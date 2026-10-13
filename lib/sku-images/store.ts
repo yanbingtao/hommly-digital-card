@@ -5,7 +5,9 @@ export function skuStore() { return getSupabaseAdmin(); }
 export async function readBatch(id: string): Promise<SkuBatch> {
   if (!uuidPattern.test(id)) throw new Error('Invalid batch ID.');
   const { data, error } = await skuStore().from('sku_image_batches').select('*').eq('id', id).single();
-  if (error || !data) throw new Error('Batch not found.'); return data as SkuBatch;
+  if (error || !data) throw new Error('Temporary task not found or already cleaned.');
+  if(data.cleanup_started_at || (data.expires_at && Date.parse(data.expires_at)<=Date.now()))throw new Error('Temporary task expired. Upload photos again to create a new task.');
+  return data as SkuBatch;
 }
 export async function readJobs(id: string): Promise<SkuJob[]> {
   const { data, error } = await skuStore().from('sku_image_jobs').select('*').eq('batch_id', id).order('created_at').order('sku').order('variant', { ascending: true });
