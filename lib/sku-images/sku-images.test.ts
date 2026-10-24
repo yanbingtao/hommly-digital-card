@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import sharp from 'sharp';
 import { validateSkuInputs, matchSkuImage, type SkuInput } from './types';
 import { skuPrompt } from './prompt';
-import { watermarkSkuImage } from './generate';
+import { renderWatermarkOverlayPng, watermarkSkuImage } from './generate';
+import { analyzeWatermarkOverlayPng } from './watermark-analysis';
+import {
+  buildWatermarkOverlaySvg,
+  WATERMARK_POSITIONS,
+  WATERMARK_TEXT,
+} from './watermark-markup';
 const { auth }=vi.hoisted(()=>({auth:vi.fn()}));
 vi.mock('@/lib/admin-auth',()=>({isAdminAuthenticated:auth}));
 import { skuAccess } from './auth';
@@ -14,6 +20,8 @@ describe('internal SKU validation and approved design',()=>{
   it('generates a unified modern scene with badge caption and original logo reference',()=>{const prompt=skuPrompt(row,'with-sticker',false);expect(prompt).toContain('ONE unified image');expect(prompt).toContain('Enamel Badge with Christmas Gift Card');expect(prompt).toContain('Maximum 20 characters');expect(prompt).toContain('18–22%');expect(prompt).toContain('Do not add halal');});
   it('removes the physical sticker, not just its lettering',()=>{const prompt=skuPrompt(row,'without-sticker',false);expect(prompt).toContain('entire physical adhesive name sticker');expect(prompt).toContain('paper, edges');expect(prompt).toContain('Remove customization callouts');});
   it('adds subtle watermark pixels without changing dimensions or corners',async()=>{const source=await sharp({create:{width:1024,height:1024,channels:3,background:'#646464'}}).png().toBuffer();const output=await watermarkSkuImage(source);const meta=await sharp(output).metadata();expect(meta.width).toBe(1024);expect(meta.height).toBe(1024);expect(output.equals(source)).toBe(false);const pixels=await sharp(output).raw().toBuffer();expect(Array.from(pixels.subarray(0,3))).toEqual([100,100,100]);});
+  it('uses path-based watermark markup without runtime font text',()=>{const svg=buildWatermarkOverlaySvg(1024);expect(WATERMARK_TEXT).toBe('hommly.sg');expect(WATERMARK_POSITIONS).toEqual([[0.46,0.30],[0.56,0.55],[0.46,0.77]]);expect(svg).not.toMatch(/<text[^>]*font-family/i);expect(svg.match(/<path /g)?.length).toBe(3);});
+  it('sharp-rendered watermark has letter-like horizontal stroke peaks',async()=>{const overlay=await renderWatermarkOverlayPng(1024);const analysis=await analyzeWatermarkOverlayPng(overlay);expect(analysis.width).toBe(1024);expect(analysis.height).toBe(1024);expect(analysis.alphaPixelCount).toBeGreaterThan(400);expect(analysis.peakSumAtMarkCenters).toBeGreaterThan(60);expect(analysis.peaksAtBottomMark).toBeGreaterThan(14);const legacyMarks=[[0.46,0.30],[0.56,0.55],[0.46,0.77]].map(([x,y])=>`<text x="${Math.round(x*1024)}" y="${Math.round(y*1024)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="26" fill="white" fill-opacity="0.173" stroke="#282828" stroke-opacity="0.102" stroke-width="1" paint-order="stroke">hommly.sg</text>`).join('');const legacySvg=`<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">${legacyMarks}</svg>`;const legacyPng=await sharp(Buffer.from(legacySvg)).png().toBuffer();const legacy=await analyzeWatermarkOverlayPng(legacyPng);expect(analysis.peakSumAtMarkCenters).toBeGreaterThanOrEqual(Math.min(legacy.peakSumAtMarkCenters,24));});
 });
 describe('SKU administrator boundary',()=>{
   beforeEach(()=>{vi.stubEnv('SKU_IMAGES_ENABLED','true');auth.mockResolvedValue(true);});

@@ -3,13 +3,21 @@ import sharp from 'sharp';
 import { skuPrompt } from './prompt';
 import { readAsset } from './store';
 import type { SkuJob, SkuBatch } from './types';
+import { buildWatermarkOverlaySvg } from './watermark-markup';
 
 export async function watermarkSkuImage(image: Buffer): Promise<Buffer> {
   const meta = await sharp(image).metadata();
   if (meta.width !== meta.height || !meta.width) throw new Error('AI returned a non-square image.');
-  const marks = [[.46,.30],[.56,.55],[.46,.77]].map(([x,y]) => `<text x="${Math.round(x*1024)}" y="${Math.round(y*1024)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="26" fill="white" fill-opacity="0.173" stroke="#282828" stroke-opacity="0.102" stroke-width="1" paint-order="stroke">hommly.sg</text>`).join('');
-  const normalized = await sharp(image).resize(1024,1024).png().toBuffer();
-  return sharp(normalized).composite([{ input: Buffer.from(`<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">${marks}</svg>`) }]).png().toBuffer();
+  const normalized = await sharp(image).resize(1024, 1024).png().toBuffer();
+  return sharp(normalized)
+    .composite([{ input: Buffer.from(buildWatermarkOverlaySvg(1024)) }])
+    .png()
+    .toBuffer();
+}
+
+/** Renders the watermark overlay alone (for tests). */
+export async function renderWatermarkOverlayPng(size = 1024): Promise<Buffer> {
+  return sharp(Buffer.from(buildWatermarkOverlaySvg(size))).png().toBuffer();
 }
 
 export async function generateSkuImage(batch: SkuBatch, job: SkuJob, sourcePath: string): Promise<{ base: Buffer; output: Buffer }> {
