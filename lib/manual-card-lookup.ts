@@ -173,13 +173,13 @@ async function loadAdminCandidates(
   if (exact.error || prefixed.error) {
     return { ok: false, httpStatus: 404, error: 'set not found' };
   }
-  const orderIds = [
-    ...new Set(
+  const orderIds = Array.from(
+    new Set(
       [...(exact.data ?? []), ...(prefixed.data ?? [])]
         .map((row) => String((row as { id?: string }).id || ''))
         .filter(Boolean)
-    ),
-  ];
+    )
+  );
   if (orderIds.length === 0) {
     return { ok: true, cards: [] };
   }
