@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isAutomationPlatform, type AutomationPlatform } from './create-card-core';
 import { isValidEditPin } from './edit-pin';
 import { decryptEditPin, isEditPinEncryptionConfigured } from './edit-pin-crypto';
-import { SHOPEE_ORDER_ID_RE } from './internal-card-request';
+import { isValidAutomationOrderId } from './internal-card-request';
 import type { CardMode } from './types';
 
 export const EDIT_PIN_LOOKUP_ERROR = {
@@ -93,7 +93,7 @@ export function parseEditPinLookupQuery(searchParams: URLSearchParams):
       httpStatus: 400,
     };
   }
-  if (!SHOPEE_ORDER_ID_RE.test(orderId)) {
+  if (!isValidAutomationOrderId(platformRaw, orderId)) {
     return {
       ok: false,
       code: EDIT_PIN_LOOKUP_ERROR.INVALID_ORDER_ID,

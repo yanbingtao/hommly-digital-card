@@ -290,6 +290,25 @@ describe('Admin Reveal behavior (unchanged)', () => {
 });
 
 describe('parseEditPinLookupQuery', () => {
+  it('accepts a Shopify order GID and rejects it for Shopee', () => {
+    const gid = 'gid://shopify/Order/22203323088970';
+    const shopify = parseEditPinLookupQuery(
+      new URLSearchParams({ platform: 'shopify', order_id: gid })
+    );
+    expect(shopify.ok).toBe(true);
+    if (shopify.ok) {
+      expect(shopify.orderId).toBe(gid);
+    }
+    expect(
+      parseEditPinLookupQuery(new URLSearchParams({ platform: 'shopee', order_id: gid })).ok
+    ).toBe(false);
+    expect(
+      parseEditPinLookupQuery(
+        new URLSearchParams({ platform: 'shopify', order_id: '260814ABCD12' })
+      ).ok
+    ).toBe(false);
+  });
+
   it('accepts platform=shopee and valid order_id', () => {
     const parsed = parseEditPinLookupQuery(
       new URLSearchParams({ platform: 'shopee', order_id: '260814ABCD12' })

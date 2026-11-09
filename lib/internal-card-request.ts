@@ -2,6 +2,14 @@ import { isAutomationPlatform, type AutomationPlatform } from './create-card-cor
 import { validateIndividualRecipientCount } from './individual-recipient-count';
 
 export const SHOPEE_ORDER_ID_RE = /^[A-Za-z0-9]{6,32}$/;
+export const SHOPIFY_ORDER_GID_RE = /^gid:\/\/shopify\/Order\/\d+$/;
+
+export function isValidAutomationOrderId(platform: string, orderId: string): boolean {
+  if (platform === 'shopify') {
+    return SHOPIFY_ORDER_GID_RE.test(orderId);
+  }
+  return SHOPEE_ORDER_ID_RE.test(orderId);
+}
 
 export const SHARED_CARD_CREATION_DISABLED = 'SHARED_CARD_CREATION_DISABLED';
 
@@ -56,7 +64,7 @@ export function parseInternalCreateCardRequest(
     return { ok: false, error: 'order_id is required' };
   }
   const orderId = orderRaw.trim();
-  if (!SHOPEE_ORDER_ID_RE.test(orderId)) {
+  if (!isValidAutomationOrderId(platform, orderId)) {
     return { ok: false, error: 'malformed order_id' };
   }
 

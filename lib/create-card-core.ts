@@ -6,7 +6,7 @@ import { generateEditPin } from './edit-pin';
 import { isEditPinEncryptionConfigured } from './edit-pin-crypto';
 import type { CardWithOrder } from './types';
 
-export const AUTOMATION_PLATFORMS = ['shopee'] as const;
+export const AUTOMATION_PLATFORMS = ['shopee', 'shopify'] as const;
 export type AutomationPlatform = (typeof AUTOMATION_PLATFORMS)[number];
 
 export function isAutomationPlatform(value: string): value is AutomationPlatform {

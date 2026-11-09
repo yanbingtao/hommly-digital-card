@@ -391,6 +391,33 @@ describe('parseInternalCreateCardRequest — Individual-only', () => {
     expect(parsed.ok).toBe(false);
   });
 
+  it('accepts a Shopify order GID and rejects it as a Shopee id', () => {
+    const gid = 'gid://shopify/Order/22203323088970';
+    const shopify = parseInternalCreateCardRequest({
+      platform: 'shopify',
+      order_id: gid,
+      mode: 'individual',
+      recipient_count: 2,
+    });
+    assertParsed(shopify);
+    expect(shopify.platform).toBe('shopify');
+    expect(shopify.orderId).toBe(gid);
+    const asShopee = parseInternalCreateCardRequest({
+      platform: 'shopee',
+      order_id: gid,
+      mode: 'individual',
+      recipient_count: 2,
+    });
+    expect(asShopee.ok).toBe(false);
+    const shopifyName = parseInternalCreateCardRequest({
+      platform: 'shopify',
+      order_id: '260810ABC123XY',
+      mode: 'individual',
+      recipient_count: 2,
+    });
+    expect(shopifyName.ok).toBe(false);
+  });
+
   it('accepts individual count=3', () => {
     const parsed = parseInternalCreateCardRequest({
       platform: 'shopee',
