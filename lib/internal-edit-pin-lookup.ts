@@ -20,9 +20,15 @@ export const EDIT_PIN_LOOKUP_ERROR = {
 export type EditPinLookupErrorCode =
   (typeof EDIT_PIN_LOOKUP_ERROR)[keyof typeof EDIT_PIN_LOOKUP_ERROR];
 
+export type EditPinLookupPlatform = AutomationPlatform | 'admin';
+
+const ADMIN_LOOKUP_ORDER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
+const ADMIN_LOOKUP_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export type EditPinLookupSuccess = {
   ok: true;
-  platform: AutomationPlatform;
+  platform: EditPinLookupPlatform;
   order_id: string;
   card_name: string;
   edit_pin: string;
@@ -44,7 +50,7 @@ export type EditPinLookupFailure = {
 export type EditPinLookupResult = EditPinLookupSuccess | EditPinLookupFailure;
 
 export type EditPinLookupResponseBody = {
-  platform: AutomationPlatform;
+  platform: EditPinLookupPlatform;
   order_id: string;
   card_name: string;
   edit_pin: string;
@@ -64,9 +70,10 @@ const LOOKUP_SELECT =
   'id, platform, external_order_id, card_mode, creation_source, edit_pin_encrypted, order:orders(order_number)';
 
 export function parseEditPinLookupQuery(searchParams: URLSearchParams):
-  | { ok: true; platform: AutomationPlatform; orderId: string }
+  | { ok: true; platform: EditPinLookupPlatform; orderId: string }
   | { ok: false; code: EditPinLookupErrorCode; message: string; httpStatus: number } {
   const platformRaw = (searchParams.get('platform') ?? '').trim();
+  const orderId = (searchParams.get('order_id') ?? '').trim();
   if (!platformRaw) {
     return {
       ok: false,
@@ -75,21 +82,30 @@ export function parseEditPinLookupQuery(searchParams: URLSearchParams):
       httpStatus: 400,
     };
   }
-  if (!isAutomationPlatform(platformRaw)) {
-    return {
-      ok: false,
-      code: EDIT_PIN_LOOKUP_ERROR.INVALID_PLATFORM,
-      message: 'platform is not allowed',
-      httpStatus: 400,
-    };
-  }
-
-  const orderId = (searchParams.get('order_id') ?? '').trim();
   if (!orderId) {
     return {
       ok: false,
       code: EDIT_PIN_LOOKUP_ERROR.INVALID_ORDER_ID,
       message: 'order_id is required',
+      httpStatus: 400,
+    };
+  }
+  if (platformRaw === 'admin') {
+    if (!ADMIN_LOOKUP_UUID_RE.test(orderId) && !ADMIN_LOOKUP_ORDER_RE.test(orderId)) {
+      return {
+        ok: false,
+        code: EDIT_PIN_LOOKUP_ERROR.INVALID_ORDER_ID,
+        message: 'malformed order_id',
+        httpStatus: 400,
+      };
+    }
+    return { ok: true, platform: 'admin', orderId };
+  }
+  if (!isAutomationPlatform(platformRaw)) {
+    return {
+      ok: false,
+      code: EDIT_PIN_LOOKUP_ERROR.INVALID_PLATFORM,
+      message: 'platform is not allowed',
       httpStatus: 400,
     };
   }
@@ -141,7 +157,7 @@ export function isLegacyShopeeIndividualCandidate(
 
 async function findCanonicalCard(
   supabase: SupabaseClient,
-  platform: AutomationPlatform,
+  platform: EditPinLookupPlatform,
   orderId: string
 ): Promise<{ card: LookupCardRow | null; error: string | null }> {
   const { data, error } = await supabase
@@ -286,7 +302,7 @@ function decryptExistingPin(card: LookupCardRow): EditPinLookupResult {
  */
 export async function lookupEditPinByPlatformOrder(
   supabase: SupabaseClient,
-  platform: AutomationPlatform,
+  platform: EditPinLookupPlatform,
   orderId: string
 ): Promise<EditPinLookupResult> {
   if (!isEditPinEncryptionConfigured()) {
@@ -311,7 +327,9 @@ export async function lookupEditPinByPlatformOrder(
   let card = canonical.card;
   let matchPath: EditPinLookupSuccess['matchPath'] = 'canonical';
 
-  if (!card) {
+  // Legacy prefix recovery is Shopee-only. Shopify and Manual sets match
+  // platform + external_order_id and must not fall through to another order.
+  if (!card && platform === 'shopee') {
     const legacy = await findLegacyCardByOrderNumberPrefix(supabase, orderId);
     if (legacy.error) {
       return {

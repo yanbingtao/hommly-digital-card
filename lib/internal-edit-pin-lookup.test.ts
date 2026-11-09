@@ -320,17 +320,25 @@ describe('parseEditPinLookupQuery', () => {
     }
   });
 
-  it('rejects missing or non-automation platform', () => {
+  it('rejects a missing or unknown platform and accepts a manual set id', () => {
     expect(parseEditPinLookupQuery(new URLSearchParams({ order_id: '260814ABCD12' })).ok).toBe(
       false
     );
-    const admin = parseEditPinLookupQuery(
-      new URLSearchParams({ platform: 'admin', order_id: '260814ABCD12' })
+    const unknown = parseEditPinLookupQuery(
+      new URLSearchParams({ platform: 'lazada', order_id: '260814ABCD12' })
     );
-    expect(admin.ok).toBe(false);
-    if (!admin.ok) {
-      expect(admin.code).toBe(EDIT_PIN_LOOKUP_ERROR.INVALID_PLATFORM);
-      expect(admin.httpStatus).toBe(400);
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) {
+      expect(unknown.code).toBe(EDIT_PIN_LOOKUP_ERROR.INVALID_PLATFORM);
+      expect(unknown.httpStatus).toBe(400);
+    }
+    const admin = parseEditPinLookupQuery(
+      new URLSearchParams({ platform: 'admin', order_id: 'SET-260814ABCD12' })
+    );
+    expect(admin.ok).toBe(true);
+    if (admin.ok) {
+      expect(admin.platform).toBe('admin');
+      expect(admin.orderId).toBe('SET-260814ABCD12');
     }
   });
 
@@ -356,6 +364,36 @@ describe('lookupEditPinByPlatformOrder', () => {
   afterEach(() => {
     if (previousKey === undefined) delete process.env.EDIT_PIN_ENCRYPTION_KEY;
     else process.env.EDIT_PIN_ENCRYPTION_KEY = previousKey;
+  });
+
+  it('decrypts the existing PIN for a manual set and does not generate one', async () => {
+    const storage = buildEditPinStorage(pin);
+    const card = individualCard({
+      platform: 'admin',
+      external_order_id: 'SET-260814ABCD12',
+      creation_source: 'admin',
+      edit_pin_hash: storage.edit_pin_hash,
+      edit_pin_encrypted: storage.edit_pin_encrypted,
+      order: {
+        id: 'ord-admin',
+        order_number: 'SET-260814ABCD12',
+        created_at: '2026-08-14T06:00:00.000Z',
+      },
+    });
+    const generateSpy = vi.spyOn(await import('./edit-pin'), 'generateEditPin');
+    const result = await lookupEditPinByPlatformOrder(
+      createLookupSupabase([card]) as never,
+      'admin',
+      'SET-260814ABCD12'
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.edit_pin).toBe(pin);
+      expect(result.platform).toBe('admin');
+      expect(result.matchPath).toBe('canonical');
+    }
+    expect(generateSpy).not.toHaveBeenCalled();
+    generateSpy.mockRestore();
   });
 
   it('returns the already-persisted recoverable PIN for Shopee Individual', async () => {
