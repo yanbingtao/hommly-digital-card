@@ -9,14 +9,15 @@ import { toast } from 'sonner';
 import {
   assertProcessedImageWithinLimit,
   compressImageBeforeUpload,
-  toCustomerPhotoError,
 } from '@/lib/compress-image';
 import {
   CARD_PHOTO_CUSTOMER_HINT,
+  CARD_PHOTO_UPLOAD_FALLBACK_HINT,
   hasCardPhoto,
   validateImageFile,
 } from '@/lib/card-photo';
 import { CardWithOrder } from '@/lib/types';
+import { showPhotoUploadError } from './photo-upload-toast';
 import { cn } from '@/lib/utils';
 
 interface CardPhotoUploadProps {
@@ -89,7 +90,7 @@ export function CardPhotoUpload({
 
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast.error(validation.error);
+      showPhotoUploadError();
       return;
     }
 
@@ -126,11 +127,7 @@ export function CardPhotoUpload({
       if (!response.ok) {
         clearLocalPreview();
         await loadPreview();
-        toast.error(
-          data.error && !/supabase|mime|storage|jwt|policy/i.test(data.error)
-            ? data.error
-            : "We couldn't upload this photo. Please try again."
-        );
+        showPhotoUploadError();
         return;
       }
 
@@ -142,10 +139,10 @@ export function CardPhotoUpload({
         setPreviewUrl(data.previewUrl);
       }
       toast.success('Photo added');
-    } catch (err: unknown) {
+    } catch {
       clearLocalPreview();
       await loadPreview();
-      toast.error(toCustomerPhotoError(err));
+      showPhotoUploadError();
     } finally {
       setPhase('idle');
     }
@@ -219,7 +216,10 @@ export function CardPhotoUpload({
 
       {enabled && (
       <div className="space-y-3 border-t border-rose-100 bg-white/70 px-4 py-4">
-        <p className="text-[11px] text-rose-800/55">{CARD_PHOTO_CUSTOMER_HINT}</p>
+        <div className="space-y-1">
+          <p className="text-[11px] text-rose-800/55">{CARD_PHOTO_CUSTOMER_HINT}</p>
+          <p className="text-[11px] text-rose-800/55">{CARD_PHOTO_UPLOAD_FALLBACK_HINT}</p>
+        </div>
         {statusLabel ? (
           <div className="flex min-h-[9rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200/80 bg-rose-50/40">
             <Loader2 className="h-5 w-5 animate-spin text-rose-300" />

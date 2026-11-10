@@ -7,12 +7,16 @@ import { cn } from '@/lib/utils';
 import {
   assertProcessedImageWithinLimit,
   compressImageBeforeUpload,
-  toCustomerPhotoError,
 } from '@/lib/compress-image';
-import { CARD_PHOTO_CUSTOMER_HINT, validateImageFile } from '@/lib/card-photo';
+import {
+  CARD_PHOTO_CUSTOMER_HINT,
+  CARD_PHOTO_UPLOAD_FALLBACK_HINT,
+  validateImageFile,
+} from '@/lib/card-photo';
 import { getIndividualRecipientPhotoPreview } from '@/lib/individual-recipient-editor-actions';
 import type { IndividualPhotoMode } from '@/lib/individual-recipient-editor-types';
 import { toast } from 'sonner';
+import { showPhotoUploadError } from './photo-upload-toast';
 
 type CardIndividualPhotoSectionProps = {
   editToken: string;
@@ -111,7 +115,7 @@ export function CardIndividualPhotoSection({
 
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      toast.error(validation.error);
+      showPhotoUploadError();
       return;
     }
 
@@ -126,8 +130,8 @@ export function CardIndividualPhotoSection({
         previewObjectUrl
       );
       toast.success('Photo added');
-    } catch (err: unknown) {
-      toast.error(toCustomerPhotoError(err));
+    } catch {
+      showPhotoUploadError();
     } finally {
       setPhase('idle');
     }
@@ -217,7 +221,10 @@ export function CardIndividualPhotoSection({
 
         {showPhotoPicker ? (
           <>
-            <p className="text-[11px] text-stone-500">{hintCopy}</p>
+            <div className="space-y-1">
+              <p className="text-[11px] text-stone-500">{hintCopy}</p>
+              <p className="text-[11px] text-stone-500">{CARD_PHOTO_UPLOAD_FALLBACK_HINT}</p>
+            </div>
 
             {statusLabel ? (
               <div className="flex min-h-[9rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-200 bg-white">

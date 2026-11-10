@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { BrandLogo } from '@/components/BrandLogo';
 import { CardMessageField } from '@/components/card/CardMessageField';
 import { CardIndividualPhotoSection } from '@/components/card/CardIndividualPhotoSection';
+import { showPhotoUploadError } from '@/components/card/photo-upload-toast';
 import { CardSenderLinksSection } from '@/components/card/CardSenderLinksSection';
 import { CardThemePicker } from '@/components/card/CardThemePicker';
 import { CardViewPinSection } from '@/components/card/CardViewPinSection';
@@ -189,7 +190,7 @@ export function IndividualRecipientEditor({
       } catch {
         publishInFlightRef.current = false;
         setPublishing(false);
-        toast.error('Could not read the selected photo.');
+        showPhotoUploadError();
         return;
       }
     }

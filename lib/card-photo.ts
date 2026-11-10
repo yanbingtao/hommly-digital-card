@@ -22,6 +22,9 @@ export const CARD_PHOTO_SIGNED_URL_TTL_SECONDS = 600;
 export const CARD_PHOTO_CUSTOMER_HINT =
   "Choose a photo from your device. We'll optimise it automatically.";
 
+export const CARD_PHOTO_UPLOAD_FALLBACK_HINT =
+  "If your photo can't be uploaded, it may be too large or in an unsupported format. Try uploading a screenshot of it instead.";
+
 export function normalizeStoragePath(cardId: string): string {
   return `cards/${cardId}/photo.webp`;
 }
