@@ -304,10 +304,10 @@ function CardReveal({
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.55, duration: 0.7 }}
-                className="mt-5 overflow-hidden rounded-xl bg-stone-100/80 ring-1 ring-stone-200/60"
+                className="mx-auto mt-5 w-fit max-w-full overflow-hidden rounded-xl bg-stone-100/80 ring-1 ring-stone-200/60"
               >
                 {photoLoading ? (
-                  <div className="flex h-40 items-center justify-center">
+                  <div className="flex h-40 w-64 max-w-full items-center justify-center">
                     <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
                   </div>
                 ) : photoUrl ? (
@@ -315,7 +315,7 @@ function CardReveal({
                   <img
                     src={photoUrl}
                     alt="A photo from the sender"
-                    className="max-h-72 w-full object-cover"
+                    className="block h-auto max-h-[70vh] w-auto max-w-full"
                   />
                 ) : null}
               </motion.div>
